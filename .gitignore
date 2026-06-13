@@ -1,0 +1,21 @@
+# Binaries
+bin/
+*.exe
+*.test
+coverage.out
+coverage.html
+
+# Env
+.env
+
+# Uploads (keep dir, ignore user files)
+uploads/*
+!uploads/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
+
+# sqlc / swag generated (sqlc committed; swag docs committed)
+# internal/repository/sqlc/ — committed after generate

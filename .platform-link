@@ -1,0 +1,4 @@
+platform_repo: git@github.com:SimonLavlinskiy/finAns-platform.git
+platform_path: ../../
+openspec_changes: openspec/changes/
+openspec_specs: openspec/specs/

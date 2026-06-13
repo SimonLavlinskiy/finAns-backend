@@ -1,0 +1,8 @@
+with-expecter: false
+dir: internal/mocks
+mockname: "{{.InterfaceName}}"
+outpkg: mocks
+packages:
+  github.com/SimonLavlinskiy/finAns-backend/internal/domain:
+    interfaces:
+      HealthChecker:

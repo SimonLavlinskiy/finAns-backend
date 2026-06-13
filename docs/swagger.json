@@ -1,0 +1,28 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "description": "REST API for finAns personal finance admin",
+    "title": "finAns API",
+    "version": "1.0"
+  },
+  "basePath": "/",
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "description": "Returns service and database connectivity status",
+        "produces": ["application/json"],
+        "tags": ["health"],
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      }
+    }
+  }
+}
