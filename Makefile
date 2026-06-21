@@ -1,6 +1,6 @@
-.PHONY: up down run migrate migrate-down sqlc mocks test test-cover test-integration lint swagger build tidy
+.PHONY: up down run migrate migrate-down seed sqlc mocks test test-cover test-integration lint swagger build tidy
 
-DATABASE_URL ?= postgres://finans:finans@localhost:5432/finans?sslmode=disable
+DATABASE_URL ?= postgres://finans:finans@localhost:5435/finans?sslmode=disable
 
 up:
 	docker compose up -d postgres
@@ -16,6 +16,10 @@ migrate:
 
 migrate-down:
 	DATABASE_URL=$(DATABASE_URL) go run ./cmd/migrate -direction down
+
+seed:
+	psql $(DATABASE_URL) -f testdata/fixtures/tags.sql
+	psql $(DATABASE_URL) -f testdata/fixtures/transactions.sql
 
 sqlc:
 	sqlc generate

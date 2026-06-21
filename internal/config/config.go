@@ -8,13 +8,15 @@ import (
 )
 
 type Config struct {
-	DatabaseURL string
-	HTTPPort    string
-	LogLevel    string
-	LogFormat   string
-	CORSOrigins []string
-	UploadDir   string
-	AppVersion  string
+	DatabaseURL   string
+	HTTPPort      string
+	LogLevel      string
+	LogFormat     string
+	CORSOrigins   []string
+	UploadDir     string
+	AppVersion    string
+	SessionSecret string
+	SecureCookies bool
 }
 
 func Load() (Config, error) {
@@ -25,20 +27,23 @@ func Load() (Config, error) {
 
 	_ = v.ReadInConfig() // optional .env file
 
-	v.SetDefault("HTTP_PORT", "8080")
+	v.SetDefault("HTTP_PORT", "8082")
 	v.SetDefault("LOG_LEVEL", "info")
 	v.SetDefault("LOG_FORMAT", "text")
 	v.SetDefault("CORS_ORIGINS", "http://localhost:5173")
 	v.SetDefault("UPLOAD_DIR", "./uploads")
 	v.SetDefault("APP_VERSION", "dev")
+	v.SetDefault("SECURE_COOKIES", true)
 
 	cfg := Config{
-		DatabaseURL: v.GetString("DATABASE_URL"),
-		HTTPPort:    v.GetString("HTTP_PORT"),
-		LogLevel:    v.GetString("LOG_LEVEL"),
-		LogFormat:   v.GetString("LOG_FORMAT"),
-		UploadDir:   v.GetString("UPLOAD_DIR"),
-		AppVersion:  v.GetString("APP_VERSION"),
+		DatabaseURL:   v.GetString("DATABASE_URL"),
+		HTTPPort:      v.GetString("HTTP_PORT"),
+		LogLevel:      v.GetString("LOG_LEVEL"),
+		LogFormat:     v.GetString("LOG_FORMAT"),
+		UploadDir:     v.GetString("UPLOAD_DIR"),
+		AppVersion:    v.GetString("APP_VERSION"),
+		SessionSecret: v.GetString("SESSION_SECRET"),
+		SecureCookies: v.GetBool("SECURE_COOKIES"),
 	}
 
 	origins := v.GetString("CORS_ORIGINS")
@@ -52,6 +57,9 @@ func Load() (Config, error) {
 
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL is required")
+	}
+	if cfg.SessionSecret == "" {
+		return Config{}, fmt.Errorf("SESSION_SECRET is required")
 	}
 
 	return cfg, nil

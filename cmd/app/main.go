@@ -47,10 +47,30 @@ func main() {
 	healthSvc := service.NewHealthService(healthRepo, cfg.AppVersion)
 	healthHandler := handler.NewHealthHandler(healthSvc)
 
+	tagRepo := repository.NewTagRepository(pool)
+	txRepo := repository.NewTransactionRepository(pool)
+	balRepo := repository.NewBalanceRepository(pool)
+	userRepo := repository.NewUserRepository(pool)
+	analyticsRepo := repository.NewAnalyticsRepository(pool)
+
+	tagSvc := service.NewTagService(tagRepo)
+	fileSvc := service.NewFileService(cfg.UploadDir, txRepo)
+	txSvc := service.NewTransactionService(txRepo, tagRepo, tagSvc, fileSvc)
+	balSvc := service.NewBalanceService(balRepo)
+	authSvc := service.NewAuthService(userRepo, []byte(cfg.SessionSecret))
+	analyticsSvc := service.NewAnalyticsService(analyticsRepo, tagRepo)
+
 	router := handler.NewRouter(handler.RouterDeps{
-		Logger:        logger,
-		CORSOrigins:   cfg.CORSOrigins,
-		HealthHandler: healthHandler,
+		Logger:             logger,
+		CORSOrigins:        cfg.CORSOrigins,
+		SessionSecret:      []byte(cfg.SessionSecret),
+		HealthHandler:      healthHandler,
+		AuthHandler:        handler.NewAuthHandler(authSvc, cfg.SecureCookies),
+		TransactionHandler: handler.NewTransactionHandler(txSvc),
+		TagHandler:         handler.NewTagHandler(tagSvc),
+		BalanceHandler:     handler.NewBalanceHandler(balSvc),
+		FileHandler:        handler.NewFileHandler(fileSvc),
+		AnalyticsHandler:   handler.NewAnalyticsHandler(analyticsSvc),
 	})
 
 	srv := &http.Server{
