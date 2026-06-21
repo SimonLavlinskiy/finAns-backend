@@ -51,12 +51,14 @@ func main() {
 	txRepo := repository.NewTransactionRepository(pool)
 	balRepo := repository.NewBalanceRepository(pool)
 	userRepo := repository.NewUserRepository(pool)
+	analyticsRepo := repository.NewAnalyticsRepository(pool)
 
 	tagSvc := service.NewTagService(tagRepo)
 	fileSvc := service.NewFileService(cfg.UploadDir, txRepo)
 	txSvc := service.NewTransactionService(txRepo, tagRepo, tagSvc, fileSvc)
 	balSvc := service.NewBalanceService(balRepo)
 	authSvc := service.NewAuthService(userRepo, []byte(cfg.SessionSecret))
+	analyticsSvc := service.NewAnalyticsService(analyticsRepo, tagRepo)
 
 	router := handler.NewRouter(handler.RouterDeps{
 		Logger:             logger,
@@ -68,6 +70,7 @@ func main() {
 		TagHandler:         handler.NewTagHandler(tagSvc),
 		BalanceHandler:     handler.NewBalanceHandler(balSvc),
 		FileHandler:        handler.NewFileHandler(fileSvc),
+		AnalyticsHandler:   handler.NewAnalyticsHandler(analyticsSvc),
 	})
 
 	srv := &http.Server{

@@ -31,6 +31,8 @@ CREATE TABLE transactions (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
+
 CREATE TABLE spending_limits (
     id              BIGSERIAL PRIMARY KEY,
     tag_id          BIGINT NOT NULL REFERENCES tags (id),

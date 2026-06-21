@@ -24,6 +24,7 @@ type RouterDeps struct {
 	TagHandler         *TagHandler
 	BalanceHandler     *BalanceHandler
 	FileHandler        *FileHandler
+	AnalyticsHandler   *AnalyticsHandler
 }
 
 func NewRouter(deps RouterDeps) http.Handler {
@@ -81,6 +82,8 @@ func NewRouter(deps RouterDeps) http.Handler {
 
 			protected.Get("/balance", deps.BalanceHandler.Get)
 			protected.Put("/balance", deps.BalanceHandler.Update)
+
+			protected.Get("/analytics/expenses-calendar", deps.AnalyticsHandler.GetExpensesCalendar)
 		})
 	})
 
