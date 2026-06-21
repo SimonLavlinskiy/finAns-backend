@@ -62,18 +62,22 @@ func main() {
 	importRepo := repository.NewImportRepository(pool)
 	importSvc := service.NewImportService(importRepo, tagRepo)
 
+	mpRepo := repository.NewMandatoryPaymentRepository(pool)
+	mpSvc := service.NewMandatoryPaymentService(mpRepo, tagRepo, tagSvc)
+
 	router := handler.NewRouter(handler.RouterDeps{
-		Logger:             logger,
-		CORSOrigins:        cfg.CORSOrigins,
-		SessionSecret:      []byte(cfg.SessionSecret),
-		HealthHandler:      healthHandler,
-		AuthHandler:        handler.NewAuthHandler(authSvc, cfg.SecureCookies),
-		TransactionHandler: handler.NewTransactionHandler(txSvc),
-		TagHandler:         handler.NewTagHandler(tagSvc),
-		BalanceHandler:     handler.NewBalanceHandler(balSvc),
-		FileHandler:        handler.NewFileHandler(fileSvc),
-		AnalyticsHandler:   handler.NewAnalyticsHandler(analyticsSvc),
-		ImportHandler:      handler.NewImportHandler(importSvc),
+		Logger:                  logger,
+		CORSOrigins:             cfg.CORSOrigins,
+		SessionSecret:           []byte(cfg.SessionSecret),
+		HealthHandler:           healthHandler,
+		AuthHandler:             handler.NewAuthHandler(authSvc, cfg.SecureCookies),
+		TransactionHandler:      handler.NewTransactionHandler(txSvc),
+		TagHandler:              handler.NewTagHandler(tagSvc),
+		BalanceHandler:          handler.NewBalanceHandler(balSvc),
+		FileHandler:             handler.NewFileHandler(fileSvc),
+		AnalyticsHandler:        handler.NewAnalyticsHandler(analyticsSvc),
+		ImportHandler:           handler.NewImportHandler(importSvc),
+		MandatoryPaymentHandler: handler.NewMandatoryPaymentHandler(mpSvc),
 	})
 
 	srv := &http.Server{

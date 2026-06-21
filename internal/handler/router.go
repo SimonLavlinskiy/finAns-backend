@@ -15,17 +15,18 @@ import (
 )
 
 type RouterDeps struct {
-	Logger             *slog.Logger
-	CORSOrigins        []string
-	SessionSecret      []byte
-	HealthHandler      *HealthHandler
-	AuthHandler        *AuthHandler
-	TransactionHandler *TransactionHandler
-	TagHandler         *TagHandler
-	BalanceHandler     *BalanceHandler
-	FileHandler        *FileHandler
-	AnalyticsHandler   *AnalyticsHandler
-	ImportHandler      *ImportHandler
+	Logger                   *slog.Logger
+	CORSOrigins              []string
+	SessionSecret            []byte
+	HealthHandler            *HealthHandler
+	AuthHandler              *AuthHandler
+	TransactionHandler       *TransactionHandler
+	TagHandler               *TagHandler
+	BalanceHandler           *BalanceHandler
+	FileHandler              *FileHandler
+	AnalyticsHandler         *AnalyticsHandler
+	ImportHandler            *ImportHandler
+	MandatoryPaymentHandler  *MandatoryPaymentHandler
 }
 
 func NewRouter(deps RouterDeps) http.Handler {
@@ -93,6 +94,16 @@ func NewRouter(deps RouterDeps) http.Handler {
 				ir.Post("/batches/{id}/close", deps.ImportHandler.CloseBatch)
 				ir.Patch("/rows/{id}", deps.ImportHandler.UpdateRow)
 				ir.Post("/rows/{id}/accept", deps.ImportHandler.AcceptRow)
+			})
+
+			protected.Route("/mandatory-payments", func(mp chi.Router) {
+				mp.Get("/", deps.MandatoryPaymentHandler.List)
+				mp.Post("/", deps.MandatoryPaymentHandler.Create)
+				mp.Get("/{id}", deps.MandatoryPaymentHandler.Get)
+				mp.Put("/{id}", deps.MandatoryPaymentHandler.Update)
+				mp.Delete("/{id}", deps.MandatoryPaymentHandler.Delete)
+				mp.Post("/{id}/duplicate", deps.MandatoryPaymentHandler.Duplicate)
+				mp.Post("/{id}/mark-paid", deps.MandatoryPaymentHandler.MarkPaid)
 			})
 		})
 	})
