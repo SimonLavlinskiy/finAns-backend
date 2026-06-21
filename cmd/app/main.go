@@ -59,6 +59,8 @@ func main() {
 	balSvc := service.NewBalanceService(balRepo)
 	authSvc := service.NewAuthService(userRepo, []byte(cfg.SessionSecret))
 	analyticsSvc := service.NewAnalyticsService(analyticsRepo, tagRepo)
+	importRepo := repository.NewImportRepository(pool)
+	importSvc := service.NewImportService(importRepo, tagRepo)
 
 	router := handler.NewRouter(handler.RouterDeps{
 		Logger:             logger,
@@ -71,6 +73,7 @@ func main() {
 		BalanceHandler:     handler.NewBalanceHandler(balSvc),
 		FileHandler:        handler.NewFileHandler(fileSvc),
 		AnalyticsHandler:   handler.NewAnalyticsHandler(analyticsSvc),
+		ImportHandler:      handler.NewImportHandler(importSvc),
 	})
 
 	srv := &http.Server{

@@ -25,6 +25,7 @@ type RouterDeps struct {
 	BalanceHandler     *BalanceHandler
 	FileHandler        *FileHandler
 	AnalyticsHandler   *AnalyticsHandler
+	ImportHandler      *ImportHandler
 }
 
 func NewRouter(deps RouterDeps) http.Handler {
@@ -84,6 +85,15 @@ func NewRouter(deps RouterDeps) http.Handler {
 			protected.Put("/balance", deps.BalanceHandler.Update)
 
 			protected.Get("/analytics/expenses-calendar", deps.AnalyticsHandler.GetExpensesCalendar)
+
+			protected.Route("/import", func(ir chi.Router) {
+				ir.Post("/batches", deps.ImportHandler.UploadBatch)
+				ir.Get("/batches/active", deps.ImportHandler.GetActiveBatch)
+				ir.Post("/batches/{id}/accept", deps.ImportHandler.AcceptBatch)
+				ir.Post("/batches/{id}/close", deps.ImportHandler.CloseBatch)
+				ir.Patch("/rows/{id}", deps.ImportHandler.UpdateRow)
+				ir.Post("/rows/{id}/accept", deps.ImportHandler.AcceptRow)
+			})
 		})
 	})
 
