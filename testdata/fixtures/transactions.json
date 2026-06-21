@@ -1,0 +1,7 @@
+[
+  {"id": 1, "title": "Продукты Пятёрочка", "amount": 234500, "date": "2026-06-14", "tag_id": 7, "category": "expense", "specificity": "simple", "comment": "Фрукты и вода", "url": null, "file_path": null},
+  {"id": 2, "title": "Аренда квартиры", "amount": 4500000, "date": "2026-06-01", "tag_id": 5, "category": "expense", "specificity": "required", "comment": null, "url": null, "file_path": null},
+  {"id": 3, "title": "Зарплата июнь", "amount": 15000000, "date": "2026-06-05", "tag_id": 6, "category": "income", "specificity": "simple", "comment": null, "url": null, "file_path": null},
+  {"id": 4, "title": "Подписка Netflix", "amount": 119900, "date": "2026-06-10", "tag_id": 4, "category": "expense", "specificity": "simple", "comment": null, "url": "https://netflix.com/account", "file_path": null},
+  {"id": 5, "title": "Врач-терапевт", "amount": 350000, "date": "2026-05-20", "tag_id": 10, "category": "expense", "specificity": "required", "comment": null, "url": null, "file_path": "uploads/check_001.jpg", "file_name": "check_001.jpg", "file_mime_type": "image/jpeg"}
+]

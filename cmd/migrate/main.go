@@ -21,7 +21,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	m, err := migrate.New("file://db/migrations", dsn)
+	migrationsPath := os.Getenv("MIGRATIONS_PATH")
+	if migrationsPath == "" {
+		migrationsPath = "db/migrations"
+	}
+
+	m, err := migrate.New("file://"+migrationsPath, dsn)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "migrate init: %v\n", err)
 		os.Exit(1)

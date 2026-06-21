@@ -6,18 +6,27 @@ Go REST API для личной финансовой админки finAns.
 
 Спеки: `.platform-link` → finAns-platform.
 
+## Порты (dev)
+
+| Сервис     | Порт | Почему не стандартный        |
+|------------|------|------------------------------|
+| PostgreSQL | 5435 | 5432 занят другими проектами |
+| API        | 8082 | 8080/8081 заняты             |
+| Frontend   | 5173 | proxy `/api` → :8082         |
+
 ## Dev setup
 
 ```bash
 cp .env.example .env
-make up          # PostgreSQL
+make up          # PostgreSQL на :5435
 make migrate     # схема БД
-make run         # API на :8080
+make seed        # тестовые данные (опционально)
+make run         # API на :8082
 ```
 
-Health: `GET http://localhost:8080/api/v1/health`
+Health: `GET http://localhost:8082/api/v1/health`
 
-Swagger: `http://localhost:8080/swagger/index.html`
+Swagger: `http://localhost:8082/swagger/index.html`
 
 ## Quality
 

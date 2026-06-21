@@ -15,9 +15,15 @@ import (
 )
 
 type RouterDeps struct {
-	Logger        *slog.Logger
-	CORSOrigins   []string
-	HealthHandler *HealthHandler
+	Logger             *slog.Logger
+	CORSOrigins        []string
+	SessionSecret      []byte
+	HealthHandler      *HealthHandler
+	AuthHandler        *AuthHandler
+	TransactionHandler *TransactionHandler
+	TagHandler         *TagHandler
+	BalanceHandler     *BalanceHandler
+	FileHandler        *FileHandler
 }
 
 func NewRouter(deps RouterDeps) http.Handler {
@@ -44,6 +50,38 @@ func NewRouter(deps RouterDeps) http.Handler {
 
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Get("/health", deps.HealthHandler.HealthCheck)
+
+		api.Post("/auth/login", deps.AuthHandler.Login)
+		api.Post("/auth/logout", deps.AuthHandler.Logout)
+
+		api.Group(func(protected chi.Router) {
+			protected.Use(middleware.RequireAuth(deps.SessionSecret))
+
+			protected.Get("/auth/me", deps.AuthHandler.Me)
+
+			protected.Route("/transactions", func(tr chi.Router) {
+				tr.Get("/", deps.TransactionHandler.List)
+				tr.Post("/", deps.TransactionHandler.Create)
+				tr.Get("/suggestions", deps.TransactionHandler.Suggestions)
+				tr.Get("/{id}", deps.TransactionHandler.Get)
+				tr.Put("/{id}", deps.TransactionHandler.Update)
+				tr.Delete("/{id}", deps.TransactionHandler.Delete)
+				tr.Post("/{id}/duplicate", deps.TransactionHandler.Duplicate)
+				tr.Post("/{id}/file", deps.FileHandler.Upload)
+				tr.Delete("/{id}/file", deps.FileHandler.Delete)
+			})
+
+			protected.Route("/tags", func(tr chi.Router) {
+				tr.Get("/", deps.TagHandler.List)
+				tr.Post("/", deps.TagHandler.Create)
+				tr.Put("/{id}", deps.TagHandler.Update)
+				tr.Delete("/{id}", deps.TagHandler.Delete)
+				tr.Get("/{id}/usage", deps.TagHandler.Usage)
+			})
+
+			protected.Get("/balance", deps.BalanceHandler.Get)
+			protected.Put("/balance", deps.BalanceHandler.Update)
+		})
 	})
 
 	r.NotFound(NotFound)
