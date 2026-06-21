@@ -17,7 +17,7 @@ func TestImportValidation_NonNumericAmount(t *testing.T) {
 		Title: "Продукты", Amount: "тысяча", Date: "2026-06-15",
 	}, nil)
 	require.Equal(t, domain.ModerationRowStatusError, row.Status)
-	require.Contains(t, row.FieldErrors["amount"], "нечисловое")
+	require.Contains(t, row.FieldErrors["amount"], "тысяча")
 	require.Nil(t, row.Amount)
 }
 

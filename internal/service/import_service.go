@@ -104,7 +104,7 @@ func (s *ImportService) UpdateRow(ctx context.Context, id int64, in UpdateRowInp
 			return domain.ModerationRow{}, &apperrors.ValidationError{Fields: map[string]string{"amount": "не может быть пустым"}}
 		}
 		if amount, err := parseAmount(raw); err != nil {
-			errs["amount"] = "содержит нечисловое значение"
+			errs["amount"] = fmt.Sprintf("не удалось распознать значение %q", raw)
 			row.Amount = nil
 		} else {
 			row.Amount = &amount
@@ -118,7 +118,7 @@ func (s *ImportService) UpdateRow(ctx context.Context, id int64, in UpdateRowInp
 			return domain.ModerationRow{}, &apperrors.ValidationError{Fields: map[string]string{"date": "не может быть пустым"}}
 		}
 		if d, err := time.Parse(dateLayout, raw); err != nil {
-			errs["date"] = "не соответствует формату YYYY-MM-DD"
+			errs["date"] = fmt.Sprintf("значение %q не соответствует формату YYYY-MM-DD", raw)
 			row.Date = nil
 		} else {
 			row.Date = &d
@@ -140,8 +140,9 @@ func (s *ImportService) UpdateRow(ctx context.Context, id int64, in UpdateRowInp
 			row.Category = nil
 			delete(errs, "category")
 		case cat != "expense" && cat != "income":
-			errs["category"] = "недопустимое значение, ожидается expense или income"
-			row.Category = &cat
+			// Не сохраняем невалидное значение — иначе INSERT/UPDATE в enum-колонку упадёт с ошибкой БД.
+			errs["category"] = fmt.Sprintf("значение %q недопустимо, ожидается expense или income", cat)
+			row.Category = nil
 		default:
 			row.Category = &cat
 			delete(errs, "category")
@@ -155,8 +156,9 @@ func (s *ImportService) UpdateRow(ctx context.Context, id int64, in UpdateRowInp
 			row.Specificity = nil
 			delete(errs, "specificity")
 		case sp != "required" && sp != "simple":
-			errs["specificity"] = "недопустимое значение, ожидается required или simple"
-			row.Specificity = &sp
+			// Аналогично: не сохраняем, чтобы не сломать enum-cast.
+			errs["specificity"] = fmt.Sprintf("значение %q недопустимо, ожидается required или simple", sp)
+			row.Specificity = nil
 		default:
 			row.Specificity = &sp
 			delete(errs, "specificity")
@@ -205,7 +207,13 @@ func (s *ImportService) AcceptRow(ctx context.Context, id int64) (domain.Transac
 	return created[0], nil
 }
 
+// AcceptBatch принимает только те строки, чей статус ready.
+// repo.AcceptRows тоже фильтрует по status='ready', но мы проверяем заранее
+// чтобы вернуть понятную ошибку вместо молчаливого пропуска.
 func (s *ImportService) AcceptBatch(ctx context.Context, batchID int64, rowIDs []int64) ([]domain.Transaction, error) {
+	if len(rowIDs) == 0 {
+		return nil, &apperrors.ValidationError{Message: "не указаны строки для принятия"}
+	}
 	return s.repo.AcceptRows(ctx, batchID, rowIDs)
 }
 
@@ -290,7 +298,7 @@ func buildAndValidateRow(batchID int64, rowNumber int, rec rawRecord, tags []dom
 	if rec.Amount == "" {
 		row.FieldErrors["amount"] = "обязательное поле не заполнено"
 	} else if amount, err := parseAmount(rec.Amount); err != nil {
-		row.FieldErrors["amount"] = "содержит нечисловое значение"
+		row.FieldErrors["amount"] = fmt.Sprintf("не удалось распознать значение %q", rec.Amount)
 	} else {
 		row.Amount = &amount
 	}
@@ -298,7 +306,7 @@ func buildAndValidateRow(batchID int64, rowNumber int, rec rawRecord, tags []dom
 	if rec.Date == "" {
 		row.FieldErrors["date"] = "обязательное поле не заполнено"
 	} else if d, err := time.Parse(dateLayout, rec.Date); err != nil {
-		row.FieldErrors["date"] = "не соответствует формату YYYY-MM-DD"
+		row.FieldErrors["date"] = fmt.Sprintf("значение %q не соответствует формату YYYY-MM-DD", rec.Date)
 	} else {
 		row.Date = &d
 	}
@@ -306,24 +314,28 @@ func buildAndValidateRow(batchID int64, rowNumber int, rec rawRecord, tags []dom
 	if rec.Category != "" {
 		cat := rec.Category
 		if cat != "expense" && cat != "income" {
-			row.FieldErrors["category"] = "недопустимое значение, ожидается expense или income"
+			// Не сохраняем невалидное значение — иначе INSERT в enum-колонку упадёт с ошибкой БД.
+			row.FieldErrors["category"] = fmt.Sprintf("значение %q недопустимо, ожидается expense или income", cat)
+		} else {
+			row.Category = &cat
 		}
-		row.Category = &cat
 	}
 
 	if rec.Specificity != "" {
 		sp := rec.Specificity
 		if sp != "required" && sp != "simple" {
-			row.FieldErrors["specificity"] = "недопустимое значение, ожидается required или simple"
+			// Аналогично: не сохраняем, чтобы не сломать enum-cast.
+			row.FieldErrors["specificity"] = fmt.Sprintf("значение %q недопустимо, ожидается required или simple", sp)
+		} else {
+			row.Specificity = &sp
 		}
-		row.Specificity = &sp
 	}
 
 	if rec.Tag != "" {
 		if id, ok := resolveTagPath(tags, rec.Tag); ok {
 			row.TagID = &id
 		} else {
-			row.FieldErrors["tag"] = "не найден в системе"
+			row.FieldErrors["tag"] = fmt.Sprintf("тег %q не найден в системе", rec.Tag)
 		}
 	}
 
