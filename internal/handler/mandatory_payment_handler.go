@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/SimonLavlinskiy/finAns-backend/internal/dto"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/service"
@@ -28,7 +27,7 @@ func (h *MandatoryPaymentHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MandatoryPaymentHandler) Get(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid id")
 		return
@@ -56,7 +55,7 @@ func (h *MandatoryPaymentHandler) Create(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *MandatoryPaymentHandler) Update(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid id")
 		return
@@ -75,7 +74,7 @@ func (h *MandatoryPaymentHandler) Update(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *MandatoryPaymentHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid id")
 		return
@@ -88,7 +87,7 @@ func (h *MandatoryPaymentHandler) Delete(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *MandatoryPaymentHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid id")
 		return
@@ -102,7 +101,7 @@ func (h *MandatoryPaymentHandler) Duplicate(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *MandatoryPaymentHandler) MarkPaid(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid id")
 		return
