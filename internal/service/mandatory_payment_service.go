@@ -19,14 +19,16 @@ type MandatoryPaymentService struct {
 	repo    *repository.MandatoryPaymentRepository
 	tagRepo *repository.TagRepository
 	tagSvc  *TagService
+	txRepo  *repository.TransactionRepository
 }
 
 func NewMandatoryPaymentService(
 	repo *repository.MandatoryPaymentRepository,
 	tagRepo *repository.TagRepository,
 	tagSvc *TagService,
+	txRepo *repository.TransactionRepository,
 ) *MandatoryPaymentService {
-	return &MandatoryPaymentService{repo: repo, tagRepo: tagRepo, tagSvc: tagSvc}
+	return &MandatoryPaymentService{repo: repo, tagRepo: tagRepo, tagSvc: tagSvc, txRepo: txRepo}
 }
 
 func (s *MandatoryPaymentService) List(ctx context.Context) ([]dto.MandatoryPaymentResponse, error) {
@@ -101,11 +103,26 @@ func (s *MandatoryPaymentService) Duplicate(ctx context.Context, id int64) (dto.
 	return s.toResponse(ctx, created)
 }
 
+// MarkPaid фиксирует факт оплаты: создаёт транзакцию-расход за платёж
+// и сдвигает next_payment_date на следующий период.
 func (s *MandatoryPaymentService) MarkPaid(ctx context.Context, id int64) (dto.MandatoryPaymentResponse, error) {
 	p, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return dto.MandatoryPaymentResponse{}, err
 	}
+
+	_, err = s.txRepo.Create(ctx, domain.Transaction{
+		Title:       p.Title,
+		Amount:      p.Amount,
+		Date:        p.NextPaymentDate,
+		TagID:       p.TagID,
+		Category:    "expense",
+		Specificity: "required",
+	})
+	if err != nil {
+		return dto.MandatoryPaymentResponse{}, err
+	}
+
 	newDate := advanceDate(p.NextPaymentDate, p.Recurrence)
 	updated, err := s.repo.AdvanceDate(ctx, id, newDate)
 	if err != nil {

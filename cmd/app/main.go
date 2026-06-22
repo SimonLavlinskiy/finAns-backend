@@ -63,7 +63,7 @@ func main() {
 	importSvc := service.NewImportService(importRepo, tagRepo)
 
 	mpRepo := repository.NewMandatoryPaymentRepository(pool)
-	mpSvc := service.NewMandatoryPaymentService(mpRepo, tagRepo, tagSvc)
+	mpSvc := service.NewMandatoryPaymentService(mpRepo, tagRepo, tagSvc, txRepo)
 
 	router := handler.NewRouter(handler.RouterDeps{
 		Logger:                  logger,
