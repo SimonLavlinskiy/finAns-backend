@@ -175,7 +175,7 @@ func (s *ImportService) UpdateRow(ctx context.Context, id int64, in UpdateRowInp
 				return domain.ModerationRow{}, err
 			}
 			if !exists {
-				errs["tag"] = "не найден в системе"
+				errs["tag"] = fmt.Sprintf("метка с id %d не найдена в системе", *in.TagID)
 				row.TagID = nil
 			} else {
 				row.TagID = in.TagID
