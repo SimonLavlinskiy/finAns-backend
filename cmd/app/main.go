@@ -65,19 +65,26 @@ func main() {
 	mpRepo := repository.NewMandatoryPaymentRepository(pool)
 	mpSvc := service.NewMandatoryPaymentService(mpRepo, tagRepo, tagSvc, txRepo)
 
+	peCatRepo := repository.NewPlannedExpenseCategoryRepository(pool)
+	peCatSvc := service.NewPlannedExpenseCategoryService(peCatRepo)
+	peRepo := repository.NewPlannedExpenseRepository(pool)
+	peSvc := service.NewPlannedExpenseService(peRepo, peCatRepo, peCatSvc)
+
 	router := handler.NewRouter(handler.RouterDeps{
-		Logger:                  logger,
-		CORSOrigins:             cfg.CORSOrigins,
-		SessionSecret:           []byte(cfg.SessionSecret),
-		HealthHandler:           healthHandler,
-		AuthHandler:             handler.NewAuthHandler(authSvc, cfg.SecureCookies),
-		TransactionHandler:      handler.NewTransactionHandler(txSvc),
-		TagHandler:              handler.NewTagHandler(tagSvc),
-		BalanceHandler:          handler.NewBalanceHandler(balSvc),
-		FileHandler:             handler.NewFileHandler(fileSvc),
-		AnalyticsHandler:        handler.NewAnalyticsHandler(analyticsSvc),
-		ImportHandler:           handler.NewImportHandler(importSvc),
-		MandatoryPaymentHandler: handler.NewMandatoryPaymentHandler(mpSvc),
+		Logger:                        logger,
+		CORSOrigins:                   cfg.CORSOrigins,
+		SessionSecret:                 []byte(cfg.SessionSecret),
+		HealthHandler:                 healthHandler,
+		AuthHandler:                   handler.NewAuthHandler(authSvc, cfg.SecureCookies),
+		TransactionHandler:            handler.NewTransactionHandler(txSvc),
+		TagHandler:                    handler.NewTagHandler(tagSvc),
+		BalanceHandler:                handler.NewBalanceHandler(balSvc),
+		FileHandler:                   handler.NewFileHandler(fileSvc),
+		AnalyticsHandler:              handler.NewAnalyticsHandler(analyticsSvc),
+		ImportHandler:                 handler.NewImportHandler(importSvc),
+		MandatoryPaymentHandler:       handler.NewMandatoryPaymentHandler(mpSvc),
+		PlannedExpenseCategoryHandler: handler.NewPlannedExpenseCategoryHandler(peCatSvc),
+		PlannedExpenseHandler:         handler.NewPlannedExpenseHandler(peSvc),
 	})
 
 	srv := &http.Server{

@@ -15,18 +15,20 @@ import (
 )
 
 type RouterDeps struct {
-	Logger                   *slog.Logger
-	CORSOrigins              []string
-	SessionSecret            []byte
-	HealthHandler            *HealthHandler
-	AuthHandler              *AuthHandler
-	TransactionHandler       *TransactionHandler
-	TagHandler               *TagHandler
-	BalanceHandler           *BalanceHandler
-	FileHandler              *FileHandler
-	AnalyticsHandler         *AnalyticsHandler
-	ImportHandler            *ImportHandler
-	MandatoryPaymentHandler  *MandatoryPaymentHandler
+	Logger                        *slog.Logger
+	CORSOrigins                   []string
+	SessionSecret                 []byte
+	HealthHandler                 *HealthHandler
+	AuthHandler                   *AuthHandler
+	TransactionHandler            *TransactionHandler
+	TagHandler                    *TagHandler
+	BalanceHandler                *BalanceHandler
+	FileHandler                   *FileHandler
+	AnalyticsHandler              *AnalyticsHandler
+	ImportHandler                 *ImportHandler
+	MandatoryPaymentHandler       *MandatoryPaymentHandler
+	PlannedExpenseCategoryHandler *PlannedExpenseCategoryHandler
+	PlannedExpenseHandler         *PlannedExpenseHandler
 }
 
 func NewRouter(deps RouterDeps) http.Handler {
@@ -104,6 +106,20 @@ func NewRouter(deps RouterDeps) http.Handler {
 				mp.Delete("/{id}", deps.MandatoryPaymentHandler.Delete)
 				mp.Post("/{id}/duplicate", deps.MandatoryPaymentHandler.Duplicate)
 				mp.Post("/{id}/mark-paid", deps.MandatoryPaymentHandler.MarkPaid)
+			})
+
+			protected.Route("/planned-expense-categories", func(pc chi.Router) {
+				pc.Get("/", deps.PlannedExpenseCategoryHandler.List)
+				pc.Post("/", deps.PlannedExpenseCategoryHandler.Create)
+				pc.Patch("/reorder", deps.PlannedExpenseCategoryHandler.Reorder)
+			})
+
+			protected.Route("/planned-expenses", func(pe chi.Router) {
+				pe.Get("/", deps.PlannedExpenseHandler.List)
+				pe.Post("/", deps.PlannedExpenseHandler.Create)
+				pe.Patch("/{id}", deps.PlannedExpenseHandler.Update)
+				pe.Delete("/{id}", deps.PlannedExpenseHandler.Delete)
+				pe.Post("/{id}/complete", deps.PlannedExpenseHandler.Complete)
 			})
 		})
 	})

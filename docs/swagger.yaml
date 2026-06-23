@@ -1,0 +1,466 @@
+basePath: /
+definitions:
+  dto.AcceptedTransactionResponse:
+    properties:
+      amount:
+        type: integer
+      category:
+        type: string
+      comment:
+        type: string
+      date:
+        type: string
+      id:
+        type: integer
+      specificity:
+        type: string
+      tag_id:
+        type: integer
+      title:
+        type: string
+      url:
+        type: string
+    type: object
+  dto.CreatePlannedExpenseCategoryRequest:
+    properties:
+      color:
+        type: string
+      name:
+        type: string
+    type: object
+  dto.CreatePlannedExpenseRequest:
+    properties:
+      category_id:
+        type: integer
+      cost_kopecks:
+        type: integer
+      due_date:
+        type: string
+      new_category:
+        $ref: '#/definitions/dto.CreatePlannedExpenseCategoryRequest'
+      priority:
+        type: string
+      title:
+        type: string
+      url:
+        type: string
+    type: object
+  dto.HealthResponse:
+    properties:
+      db:
+        type: string
+      status:
+        type: string
+      version:
+        type: string
+    type: object
+  dto.ImportBatchResponse:
+    properties:
+      closed_at:
+        type: string
+      created_at:
+        type: string
+      file_name:
+        type: string
+      id:
+        type: integer
+      status:
+        type: string
+      total_rows:
+        type: integer
+    type: object
+  dto.ImportBatchWithRowsResponse:
+    properties:
+      batch:
+        $ref: '#/definitions/dto.ImportBatchResponse'
+      rows:
+        items:
+          $ref: '#/definitions/dto.ModerationRowResponse'
+        type: array
+    type: object
+  dto.ModerationRowResponse:
+    properties:
+      amount:
+        type: integer
+      batch_id:
+        type: integer
+      category:
+        type: string
+      comment:
+        type: string
+      date:
+        type: string
+      field_errors:
+        additionalProperties:
+          type: string
+        type: object
+      id:
+        type: integer
+      row_number:
+        type: integer
+      specificity:
+        type: string
+      status:
+        type: string
+      tag_id:
+        type: integer
+      title:
+        type: string
+      url:
+        type: string
+    type: object
+  dto.ReorderPlannedExpenseCategoriesRequest:
+    properties:
+      ids:
+        items:
+          type: integer
+        type: array
+    type: object
+  dto.UpdatePlannedExpenseRequest:
+    properties:
+      category_id:
+        type: integer
+      cost_kopecks:
+        type: integer
+      due_date:
+        type: string
+      new_category:
+        $ref: '#/definitions/dto.CreatePlannedExpenseCategoryRequest'
+      priority:
+        type: string
+      title:
+        type: string
+      url:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: REST API for finAns personal finance admin
+  title: finAns API
+  version: "1.0"
+paths:
+  /api/v1/analytics/expenses-calendar:
+    get:
+      parameters:
+      - description: day or month
+        in: query
+        name: level
+        required: true
+        type: string
+      - description: year
+        in: query
+        name: year
+        required: true
+        type: integer
+      - description: month (1-12), required for level=day
+        in: query
+        name: month
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Expenses calendar aggregation
+      tags:
+      - analytics
+  /api/v1/health:
+    get:
+      description: Returns service and database connectivity status
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.HealthResponse'
+      summary: Health check
+      tags:
+      - health
+  /api/v1/import/batches:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: CSV file
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.ImportBatchWithRowsResponse'
+      summary: Upload a CSV file for import moderation
+      tags:
+      - import
+  /api/v1/import/batches/{id}/accept:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Batch ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            items:
+              $ref: '#/definitions/dto.AcceptedTransactionResponse'
+            type: array
+      summary: Accept multiple ready moderation rows into transactions
+      tags:
+      - import
+  /api/v1/import/batches/{id}/close:
+    post:
+      parameters:
+      - description: Batch ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+      summary: Close an import batch (discard the moderation session)
+      tags:
+      - import
+  /api/v1/import/batches/active:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ImportBatchWithRowsResponse'
+        "204":
+          description: No Content
+      summary: Get the active (not yet closed) import batch, if any
+      tags:
+      - import
+  /api/v1/import/rows/{id}:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Row ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ModerationRowResponse'
+      summary: Inline-edit a moderation row
+      tags:
+      - import
+  /api/v1/import/rows/{id}/accept:
+    post:
+      parameters:
+      - description: Row ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.AcceptedTransactionResponse'
+      summary: Accept a single ready moderation row into transactions
+      tags:
+      - import
+  /api/v1/planned-expense-categories:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List planned expense categories
+      tags:
+      - planned-expense-categories
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Category
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreatePlannedExpenseCategoryRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create a planned expense category
+      tags:
+      - planned-expense-categories
+  /api/v1/planned-expense-categories/reorder:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Full ordered list of category IDs
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ReorderPlannedExpenseCategoriesRequest'
+      responses:
+        "204":
+          description: No Content
+      summary: Persist a new drag-and-drop order for category cards
+      tags:
+      - planned-expense-categories
+  /api/v1/planned-expenses:
+    get:
+      parameters:
+      - description: active (default) or archived
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List planned expenses (active grouped by category, or archived flat)
+      tags:
+      - planned-expenses
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Item
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreatePlannedExpenseRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create a planned expense item
+      tags:
+      - planned-expenses
+  /api/v1/planned-expenses/{id}:
+    delete:
+      parameters:
+      - description: Item ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+      summary: Delete a planned expense item
+      tags:
+      - planned-expenses
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Item ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Item
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdatePlannedExpenseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update a planned expense item
+      tags:
+      - planned-expenses
+  /api/v1/planned-expenses/{id}/complete:
+    post:
+      parameters:
+      - description: Item ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Mark a planned expense item as done and move it to the archive
+      tags:
+      - planned-expenses
+  /api/v1/transactions:
+    get:
+      parameters:
+      - description: Search title
+        in: query
+        name: search
+        type: string
+      - description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Per page
+        in: query
+        name: per_page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List transactions
+      tags:
+      - transactions
+swagger: "2.0"
