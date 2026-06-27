@@ -58,7 +58,7 @@ func main() {
 	peCatRepo := repository.NewPlannedExpenseCategoryRepository(pool)
 	peRepo := repository.NewPlannedExpenseRepository(pool)
 
-	userSvc := service.NewUserService(userRepo)
+	userSvc := service.NewUserService(userRepo, projectRepo)
 	projectSvc := service.NewProjectService(projectRepo, userRepo)
 	tagSvc := service.NewTagService(tagRepo)
 	fileSvc := service.NewFileService(cfg.UploadDir, txRepo)

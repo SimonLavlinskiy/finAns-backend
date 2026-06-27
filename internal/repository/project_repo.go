@@ -114,6 +114,28 @@ func (r *ProjectRepository) ListMembers(ctx context.Context, projectID int64) ([
 	return members, rows.Err()
 }
 
+// ListOrphaned returns projects that have no members — used to auto-join the first user.
+func (r *ProjectRepository) ListOrphaned(ctx context.Context) ([]domain.Project, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT p.id, p.name, p.initial_balance_kopecks, p.started_at, p.created_at
+		FROM projects p
+		WHERE NOT EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = p.id)
+		ORDER BY p.created_at`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var projects []domain.Project
+	for rows.Next() {
+		var p domain.Project
+		if err := rows.Scan(&p.ID, &p.Name, &p.InitialBalanceKopecks, &p.StartedAt, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		projects = append(projects, p)
+	}
+	return projects, rows.Err()
+}
+
 func (r *ProjectRepository) CountOwners(ctx context.Context, projectID int64) (int64, error) {
 	var count int64
 	err := r.pool.QueryRow(ctx, `

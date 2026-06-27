@@ -13,11 +13,12 @@ import (
 var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{3,20}$`)
 
 type UserService struct {
-	repo *repository.UserRepository
+	repo        *repository.UserRepository
+	projectRepo *repository.ProjectRepository
 }
 
-func NewUserService(repo *repository.UserRepository) *UserService {
-	return &UserService{repo: repo}
+func NewUserService(repo *repository.UserRepository, projectRepo *repository.ProjectRepository) *UserService {
+	return &UserService{repo: repo, projectRepo: projectRepo}
 }
 
 func (s *UserService) Create(ctx context.Context, req dto.CreateUserRequest) (dto.UserResponse, error) {
@@ -46,6 +47,16 @@ func (s *UserService) Create(ctx context.Context, req dto.CreateUserRequest) (dt
 	if err != nil {
 		return dto.UserResponse{}, err
 	}
+
+	// Auto-join orphaned projects (projects with no members, e.g. after initial data migration).
+	if s.projectRepo != nil {
+		if orphaned, oErr := s.projectRepo.ListOrphaned(ctx); oErr == nil {
+			for _, p := range orphaned {
+				_ = s.projectRepo.AddMember(ctx, p.ID, user.ID, "owner")
+			}
+		}
+	}
+
 	return toUserResponse(user), nil
 }
 
