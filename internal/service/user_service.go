@@ -8,6 +8,7 @@ import (
 	"github.com/SimonLavlinskiy/finAns-backend/internal/domain"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/dto"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/repository"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{3,20}$`)
@@ -21,17 +22,40 @@ func NewUserService(repo *repository.UserRepository, projectRepo *repository.Pro
 	return &UserService{repo: repo, projectRepo: projectRepo}
 }
 
+func (s *UserService) Login(ctx context.Context, req dto.LoginRequest) (dto.UserResponse, error) {
+	user, err := s.repo.GetByUsername(ctx, req.Username)
+	if err != nil {
+		return dto.UserResponse{}, &apperrors.ValidationError{
+			Message: "INVALID_CREDENTIALS",
+			Fields:  map[string]string{"password": "неверный логин или пароль"},
+		}
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+		return dto.UserResponse{}, &apperrors.ValidationError{
+			Message: "INVALID_CREDENTIALS",
+			Fields:  map[string]string{"password": "неверный логин или пароль"},
+		}
+	}
+	return toUserResponse(user), nil
+}
+
 func (s *UserService) Create(ctx context.Context, req dto.CreateUserRequest) (dto.UserResponse, error) {
 	if !usernameRegex.MatchString(req.Username) {
 		return dto.UserResponse{}, &apperrors.ValidationError{
 			Message: "INVALID_USERNAME",
-			Fields:  map[string]string{"username": "must be 3-20 chars, letters/digits/underscore only"},
+			Fields:  map[string]string{"username": "3-20 символов, только буквы/цифры/_"},
 		}
 	}
 	if req.DisplayName == "" {
 		return dto.UserResponse{}, &apperrors.ValidationError{
 			Message: "INVALID_DISPLAY_NAME",
-			Fields:  map[string]string{"display_name": "required"},
+			Fields:  map[string]string{"display_name": "обязательное поле"},
+		}
+	}
+	if len(req.Password) < 6 {
+		return dto.UserResponse{}, &apperrors.ValidationError{
+			Message: "INVALID_PASSWORD",
+			Fields:  map[string]string{"password": "минимум 6 символов"},
 		}
 	}
 
@@ -40,15 +64,19 @@ func (s *UserService) Create(ctx context.Context, req dto.CreateUserRequest) (dt
 		return dto.UserResponse{}, err
 	}
 	if exists {
-		return dto.UserResponse{}, &apperrors.ConflictError{Code: "USERNAME_TAKEN", Message: "username already taken"}
+		return dto.UserResponse{}, &apperrors.ConflictError{Code: "USERNAME_TAKEN", Message: "логин уже занят"}
 	}
 
-	user, err := s.repo.Create(ctx, req.Username, req.DisplayName)
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return dto.UserResponse{}, err
 	}
 
-	// Auto-join orphaned projects (projects with no members, e.g. after initial data migration).
+	user, err := s.repo.Create(ctx, req.Username, req.DisplayName, string(hash))
+	if err != nil {
+		return dto.UserResponse{}, err
+	}
+
 	if s.projectRepo != nil {
 		if orphaned, oErr := s.projectRepo.ListOrphaned(ctx); oErr == nil {
 			for _, p := range orphaned {
@@ -85,5 +113,6 @@ func toUserResponse(u domain.User) dto.UserResponse {
 		ID:          u.ID,
 		Username:    u.Username,
 		DisplayName: u.DisplayName,
+		IsAdmin:     u.IsAdmin,
 	}
 }

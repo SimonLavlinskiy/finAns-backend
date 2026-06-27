@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/SimonLavlinskiy/finAns-backend/internal/dto"
+	"github.com/SimonLavlinskiy/finAns-backend/internal/middleware"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/service"
 	"github.com/SimonLavlinskiy/finAns-backend/pkg/httputil"
 )
@@ -16,6 +17,20 @@ func NewUserHandler(svc *service.UserService) *UserHandler {
 	return &UserHandler{svc: svc}
 }
 
+func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
+	var req dto.LoginRequest
+	if err := decodeJSON(r, &req); err != nil {
+		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON")
+		return
+	}
+	user, err := h.svc.Login(r.Context(), req)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	httputil.WriteData(w, http.StatusOK, user)
+}
+
 func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 	users, err := h.svc.List(r.Context())
 	if err != nil {
@@ -26,6 +41,12 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
+	caller, ok := middleware.UserFromContext(r.Context())
+	if !ok || !caller.IsAdmin {
+		httputil.WriteError(w, http.StatusForbidden, "FORBIDDEN", "только администратор может создавать пользователей")
+		return
+	}
+
 	var req dto.CreateUserRequest
 	if err := decodeJSON(r, &req); err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON")

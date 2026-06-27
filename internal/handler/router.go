@@ -59,13 +59,16 @@ func NewRouter(deps RouterDeps) http.Handler {
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Get("/health", deps.HealthHandler.HealthCheck)
 
-		// Public user endpoints (no auth required)
+		// Public endpoints (no auth required)
+		api.Post("/auth/login", deps.UserHandler.Login)
 		api.Get("/users", deps.UserHandler.List)
-		api.Post("/users", deps.UserHandler.Create)
 
 		// User-authenticated routes (require X-User-ID)
 		api.Group(func(userRoutes chi.Router) {
 			userRoutes.Use(middleware.UserContextMiddleware(deps.UserRepo))
+
+			// Admin-only: create user
+			userRoutes.Post("/users", deps.UserHandler.Create)
 
 			// Project management (user context only, no project context needed)
 			userRoutes.Get("/projects", deps.ProjectHandler.List)
