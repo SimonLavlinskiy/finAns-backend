@@ -31,8 +31,8 @@ func NewMandatoryPaymentService(
 	return &MandatoryPaymentService{repo: repo, tagRepo: tagRepo, tagSvc: tagSvc, txRepo: txRepo}
 }
 
-func (s *MandatoryPaymentService) List(ctx context.Context) ([]dto.MandatoryPaymentResponse, error) {
-	payments, err := s.repo.List(ctx)
+func (s *MandatoryPaymentService) List(ctx context.Context, projectID int64) ([]dto.MandatoryPaymentResponse, error) {
+	payments, err := s.repo.List(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -55,12 +55,12 @@ func (s *MandatoryPaymentService) Get(ctx context.Context, id int64) (dto.Mandat
 	return s.toResponse(ctx, p)
 }
 
-func (s *MandatoryPaymentService) Create(ctx context.Context, req dto.CreateMandatoryPaymentRequest) (dto.MandatoryPaymentResponse, error) {
+func (s *MandatoryPaymentService) Create(ctx context.Context, req dto.CreateMandatoryPaymentRequest, projectID int64) (dto.MandatoryPaymentResponse, error) {
 	p, err := s.validateAndBuild(ctx, req.Title, req.Amount, req.TagID, req.Recurrence, req.NextPaymentDate)
 	if err != nil {
 		return dto.MandatoryPaymentResponse{}, err
 	}
-	created, err := s.repo.Create(ctx, p)
+	created, err := s.repo.Create(ctx, p, projectID)
 	if err != nil {
 		return dto.MandatoryPaymentResponse{}, err
 	}
@@ -84,7 +84,7 @@ func (s *MandatoryPaymentService) Delete(ctx context.Context, id int64) error {
 	return s.repo.Delete(ctx, id)
 }
 
-func (s *MandatoryPaymentService) Duplicate(ctx context.Context, id int64) (dto.MandatoryPaymentResponse, error) {
+func (s *MandatoryPaymentService) Duplicate(ctx context.Context, id int64, projectID int64) (dto.MandatoryPaymentResponse, error) {
 	orig, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return dto.MandatoryPaymentResponse{}, err
@@ -96,7 +96,7 @@ func (s *MandatoryPaymentService) Duplicate(ctx context.Context, id int64) (dto.
 		Recurrence:      orig.Recurrence,
 		NextPaymentDate: time.Now().Truncate(24 * time.Hour),
 	}
-	created, err := s.repo.Create(ctx, copy)
+	created, err := s.repo.Create(ctx, copy, projectID)
 	if err != nil {
 		return dto.MandatoryPaymentResponse{}, err
 	}
@@ -105,7 +105,7 @@ func (s *MandatoryPaymentService) Duplicate(ctx context.Context, id int64) (dto.
 
 // MarkPaid фиксирует факт оплаты: создаёт транзакцию-расход за платёж
 // и сдвигает next_payment_date на следующий период.
-func (s *MandatoryPaymentService) MarkPaid(ctx context.Context, id int64) (dto.MandatoryPaymentResponse, error) {
+func (s *MandatoryPaymentService) MarkPaid(ctx context.Context, id int64, projectID int64) (dto.MandatoryPaymentResponse, error) {
 	p, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return dto.MandatoryPaymentResponse{}, err
@@ -118,7 +118,7 @@ func (s *MandatoryPaymentService) MarkPaid(ctx context.Context, id int64) (dto.M
 		TagID:       p.TagID,
 		Category:    "expense",
 		Specificity: "required",
-	})
+	}, projectID)
 	if err != nil {
 		return dto.MandatoryPaymentResponse{}, err
 	}

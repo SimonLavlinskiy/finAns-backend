@@ -141,7 +141,7 @@ func (r *ImportRepository) UpdateRow(ctx context.Context, row domain.ModerationR
 
 // AcceptRows переносит готовые строки модерации в transactions и удаляет их из
 // moderation_transactions в одной БД-транзакции (атомарный перенос без статуса "Перенесено").
-func (r *ImportRepository) AcceptRows(ctx context.Context, batchID int64, rowIDs []int64) ([]domain.Transaction, error) {
+func (r *ImportRepository) AcceptRows(ctx context.Context, batchID int64, rowIDs []int64, projectID int64) ([]domain.Transaction, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -187,11 +187,11 @@ func (r *ImportRepository) AcceptRows(ctx context.Context, batchID int64, rowIDs
 	for _, rr := range ready {
 		var t domain.Transaction
 		err := tx.QueryRow(ctx, `
-			INSERT INTO transactions (title, amount, date, tag_id, category, specificity, comment, url)
-			VALUES ($1,$2,$3,$4,$5::transaction_category,$6::transaction_specificity,$7,$8)
+			INSERT INTO transactions (title, amount, date, tag_id, category, specificity, comment, url, project_id)
+			VALUES ($1,$2,$3,$4,$5::transaction_category,$6::transaction_specificity,$7,$8,$9)
 			RETURNING id, title, amount, date, tag_id, category::text, specificity::text,
 			          comment, url, created_at, updated_at`,
-			rr.title, rr.amount, rr.date, rr.tagID, rr.category, rr.specificity, rr.comment, rr.url).
+			rr.title, rr.amount, rr.date, rr.tagID, rr.category, rr.specificity, rr.comment, rr.url, projectID).
 			Scan(&t.ID, &t.Title, &t.Amount, &t.Date, &t.TagID, &t.Category, &t.Specificity,
 				&t.Comment, &t.URL, &t.CreatedAt, &t.UpdatedAt)
 		if err != nil {

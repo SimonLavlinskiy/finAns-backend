@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/SimonLavlinskiy/finAns-backend/internal/dto"
+	"github.com/SimonLavlinskiy/finAns-backend/internal/middleware"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/service"
 	"github.com/SimonLavlinskiy/finAns-backend/pkg/httputil"
 	"github.com/go-chi/chi/v5"
@@ -19,7 +20,12 @@ func NewTagHandler(svc *service.TagService) *TagHandler {
 }
 
 func (h *TagHandler) List(w http.ResponseWriter, r *http.Request) {
-	tree, err := h.svc.ListTree(r.Context())
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
+	tree, err := h.svc.ListTree(r.Context(), projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -28,12 +34,17 @@ func (h *TagHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TagHandler) Create(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
 	var req dto.CreateTagRequest
 	if err := decodeJSON(r, &req); err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON")
 		return
 	}
-	tag, err := h.svc.Create(r.Context(), req)
+	tag, err := h.svc.Create(r.Context(), req, projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return

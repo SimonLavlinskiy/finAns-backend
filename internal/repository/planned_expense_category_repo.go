@@ -25,11 +25,12 @@ func scanPlannedExpenseCategory(row pgx.Row) (domain.PlannedExpenseCategory, err
 	return c, err
 }
 
-func (r *PlannedExpenseCategoryRepository) List(ctx context.Context) ([]domain.PlannedExpenseCategory, error) {
+func (r *PlannedExpenseCategoryRepository) List(ctx context.Context, projectID int64) ([]domain.PlannedExpenseCategory, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT `+pecColumns+`
 		FROM planned_expense_categories
-		ORDER BY sort_order ASC, id ASC`)
+		WHERE project_id = $1
+		ORDER BY sort_order ASC, id ASC`, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -46,12 +47,12 @@ func (r *PlannedExpenseCategoryRepository) List(ctx context.Context) ([]domain.P
 	return result, rows.Err()
 }
 
-func (r *PlannedExpenseCategoryRepository) Create(ctx context.Context, name, color string) (domain.PlannedExpenseCategory, error) {
+func (r *PlannedExpenseCategoryRepository) Create(ctx context.Context, name, color string, projectID int64) (domain.PlannedExpenseCategory, error) {
 	row := r.pool.QueryRow(ctx, `
-		INSERT INTO planned_expense_categories (name, color, sort_order)
-		VALUES ($1, $2, COALESCE((SELECT MAX(sort_order) + 1 FROM planned_expense_categories), 0))
+		INSERT INTO planned_expense_categories (name, color, sort_order, project_id)
+		VALUES ($1, $2, COALESCE((SELECT MAX(sort_order) + 1 FROM planned_expense_categories WHERE project_id = $3), 0), $3)
 		RETURNING `+pecColumns,
-		name, color)
+		name, color, projectID)
 	return scanPlannedExpenseCategory(row)
 }
 

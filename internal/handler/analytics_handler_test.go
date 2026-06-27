@@ -14,6 +14,7 @@ func TestAnalyticsHandler_GetExpensesCalendar_InvalidLevel(t *testing.T) {
 	h := NewAnalyticsHandler(service.NewAnalyticsService(nil, nil))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/analytics/expenses-calendar?level=week&year=2026", nil)
+	req = req.WithContext(middleware.WithProjectID(req.Context(), 1))
 	rec := httptest.NewRecorder()
 
 	h.GetExpensesCalendar(rec, req)
@@ -21,22 +22,11 @@ func TestAnalyticsHandler_GetExpensesCalendar_InvalidLevel(t *testing.T) {
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 }
 
-func TestAnalyticsHandler_GetExpensesCalendar_Unauthorized(t *testing.T) {
-	h := NewAnalyticsHandler(service.NewAnalyticsService(nil, nil))
-	protected := middleware.RequireAuth([]byte("test-secret"))(http.HandlerFunc(h.GetExpensesCalendar))
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/analytics/expenses-calendar?level=month&year=2026", nil)
-	rec := httptest.NewRecorder()
-
-	protected.ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
-}
-
 func TestAnalyticsHandler_GetExpensesCalendar_DayWithoutMonth(t *testing.T) {
 	h := NewAnalyticsHandler(service.NewAnalyticsService(nil, nil))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/analytics/expenses-calendar?level=day&year=2026", nil)
+	req = req.WithContext(middleware.WithProjectID(req.Context(), 1))
 	rec := httptest.NewRecorder()
 
 	h.GetExpensesCalendar(rec, req)

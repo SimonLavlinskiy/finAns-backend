@@ -15,14 +15,14 @@ func NewBalanceRepository(pool *pgxpool.Pool) *BalanceRepository {
 	return &BalanceRepository{pool: pool}
 }
 
-func (r *BalanceRepository) GetSnapshot(ctx context.Context) (domain.BalanceSnapshot, error) {
+func (r *BalanceRepository) GetSnapshot(ctx context.Context, projectID int64) (domain.BalanceSnapshot, error) {
 	var snap domain.BalanceSnapshot
 	err := r.pool.QueryRow(ctx, `
 		SELECT
-			COALESCE((SELECT initial_amount FROM user_balance ORDER BY id LIMIT 1), 0),
-			COALESCE((SELECT SUM(amount) FROM transactions WHERE category = 'income'), 0),
-			COALESCE((SELECT SUM(amount) FROM transactions WHERE category = 'expense'), 0)
-	`).Scan(&snap.InitialAmount, &snap.TotalIncome, &snap.TotalExpense)
+			COALESCE((SELECT initial_amount FROM user_balance WHERE project_id = $1 ORDER BY id LIMIT 1), 0),
+			COALESCE((SELECT SUM(amount) FROM transactions WHERE category = 'income' AND project_id = $1), 0),
+			COALESCE((SELECT SUM(amount) FROM transactions WHERE category = 'expense' AND project_id = $1), 0)
+	`, projectID).Scan(&snap.InitialAmount, &snap.TotalIncome, &snap.TotalExpense)
 	if err != nil {
 		return domain.BalanceSnapshot{}, err
 	}
@@ -30,34 +30,20 @@ func (r *BalanceRepository) GetSnapshot(ctx context.Context) (domain.BalanceSnap
 	return snap, nil
 }
 
-func (r *BalanceRepository) UpsertBalance(ctx context.Context, amount int64) error {
-	_, err := r.pool.Exec(ctx, `
-		INSERT INTO user_balance (initial_amount) VALUES ($1)
-		ON CONFLICT ((id <= 2147483647)) DO UPDATE SET initial_amount = $1, updated_at = NOW()`,
-		amount)
-	if err == nil {
-		return nil
-	}
-	// Fallback: классический UPSERT через COUNT
-	return r.upsertFallback(ctx, amount)
-}
-
-func (r *BalanceRepository) upsertFallback(ctx context.Context, amount int64) error {
+func (r *BalanceRepository) UpsertInitialAmount(ctx context.Context, amount int64, projectID int64) error {
 	var count int64
-	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM user_balance`).Scan(&count); err != nil {
+	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM user_balance WHERE project_id = $1`, projectID).Scan(&count); err != nil {
 		return err
 	}
 	if count == 0 {
-		_, err := r.pool.Exec(ctx, `INSERT INTO user_balance (initial_amount) VALUES ($1)`, amount)
+		_, err := r.pool.Exec(ctx, `INSERT INTO user_balance (initial_amount, project_id) VALUES ($1, $2)`, amount, projectID)
 		return err
 	}
-	_, err := r.pool.Exec(ctx, `UPDATE user_balance SET initial_amount = $1, updated_at = NOW()`, amount)
+	_, err := r.pool.Exec(ctx, `UPDATE user_balance SET initial_amount = $1, updated_at = NOW() WHERE project_id = $2`, amount, projectID)
 	return err
 }
 
-// SetCurrentBalanceAtomic атомарно вычисляет initial_amount из target balance в одной транзакции БД.
-// target = initial_amount + total_income - total_expense → initial_amount = target - total_income + total_expense
-func (r *BalanceRepository) SetCurrentBalanceAtomic(ctx context.Context, target int64) (domain.BalanceSnapshot, error) {
+func (r *BalanceRepository) SetCurrentBalanceAtomic(ctx context.Context, target int64, projectID int64) (domain.BalanceSnapshot, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return domain.BalanceSnapshot{}, err
@@ -67,25 +53,25 @@ func (r *BalanceRepository) SetCurrentBalanceAtomic(ctx context.Context, target 
 	var snap domain.BalanceSnapshot
 	if err := tx.QueryRow(ctx, `
 		SELECT
-			COALESCE((SELECT initial_amount FROM user_balance ORDER BY id LIMIT 1), 0),
-			COALESCE((SELECT SUM(amount) FROM transactions WHERE category = 'income'), 0),
-			COALESCE((SELECT SUM(amount) FROM transactions WHERE category = 'expense'), 0)
-	`).Scan(&snap.InitialAmount, &snap.TotalIncome, &snap.TotalExpense); err != nil {
+			COALESCE((SELECT initial_amount FROM user_balance WHERE project_id = $1 ORDER BY id LIMIT 1), 0),
+			COALESCE((SELECT SUM(amount) FROM transactions WHERE category = 'income' AND project_id = $1), 0),
+			COALESCE((SELECT SUM(amount) FROM transactions WHERE category = 'expense' AND project_id = $1), 0)
+	`, projectID).Scan(&snap.InitialAmount, &snap.TotalIncome, &snap.TotalExpense); err != nil {
 		return domain.BalanceSnapshot{}, err
 	}
 
 	newInitial := target - snap.TotalIncome + snap.TotalExpense
 
 	var count int64
-	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM user_balance`).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM user_balance WHERE project_id = $1`, projectID).Scan(&count); err != nil {
 		return domain.BalanceSnapshot{}, err
 	}
 	if count == 0 {
-		if _, err := tx.Exec(ctx, `INSERT INTO user_balance (initial_amount) VALUES ($1)`, newInitial); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO user_balance (initial_amount, project_id) VALUES ($1, $2)`, newInitial, projectID); err != nil {
 			return domain.BalanceSnapshot{}, err
 		}
 	} else {
-		if _, err := tx.Exec(ctx, `UPDATE user_balance SET initial_amount = $1, updated_at = NOW()`, newInitial); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE user_balance SET initial_amount = $1, updated_at = NOW() WHERE project_id = $2`, newInitial, projectID); err != nil {
 			return domain.BalanceSnapshot{}, err
 		}
 	}

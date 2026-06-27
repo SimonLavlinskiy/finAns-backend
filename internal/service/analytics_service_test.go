@@ -12,7 +12,7 @@ import (
 
 func TestGetExpensesCalendar_InvalidLevel(t *testing.T) {
 	svc := NewAnalyticsService(nil, nil)
-	_, err := svc.GetExpensesCalendar(context.Background(), "week", 2026, 6)
+	_, err := svc.GetExpensesCalendar(context.Background(), "week", 2026, 6, int64(1))
 
 	var ve *apperrors.ValidationError
 	require.ErrorAs(t, err, &ve)
@@ -21,7 +21,7 @@ func TestGetExpensesCalendar_InvalidLevel(t *testing.T) {
 
 func TestGetExpensesCalendar_DayWithoutMonth(t *testing.T) {
 	svc := NewAnalyticsService(nil, nil)
-	_, err := svc.GetExpensesCalendar(context.Background(), "day", 2026, 0)
+	_, err := svc.GetExpensesCalendar(context.Background(), "day", 2026, 0, int64(1))
 
 	var ve *apperrors.ValidationError
 	require.ErrorAs(t, err, &ve)

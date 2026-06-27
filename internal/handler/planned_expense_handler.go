@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/SimonLavlinskiy/finAns-backend/internal/dto"
+	"github.com/SimonLavlinskiy/finAns-backend/internal/middleware"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/service"
 	"github.com/SimonLavlinskiy/finAns-backend/pkg/httputil"
 	"github.com/go-chi/chi/v5"
@@ -25,8 +26,13 @@ func NewPlannedExpenseHandler(svc *service.PlannedExpenseService) *PlannedExpens
 // @Success      200 {object} map[string]interface{}
 // @Router       /api/v1/planned-expenses [get]
 func (h *PlannedExpenseHandler) List(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
 	if r.URL.Query().Get("status") == "archived" {
-		items, err := h.svc.ListArchived(r.Context())
+		items, err := h.svc.ListArchived(r.Context(), projectID)
 		if err != nil {
 			writeServiceError(w, err)
 			return
@@ -35,7 +41,7 @@ func (h *PlannedExpenseHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	categories, err := h.svc.ListActive(r.Context())
+	categories, err := h.svc.ListActive(r.Context(), projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -52,12 +58,17 @@ func (h *PlannedExpenseHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Success      201 {object} map[string]interface{}
 // @Router       /api/v1/planned-expenses [post]
 func (h *PlannedExpenseHandler) Create(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
 	var req dto.CreatePlannedExpenseRequest
 	if err := decodeJSON(r, &req); err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON")
 		return
 	}
-	e, err := h.svc.Create(r.Context(), req)
+	e, err := h.svc.Create(r.Context(), req, projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -75,6 +86,11 @@ func (h *PlannedExpenseHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Success      200 {object} map[string]interface{}
 // @Router       /api/v1/planned-expenses/{id} [patch]
 func (h *PlannedExpenseHandler) Update(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
 	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid id")
@@ -85,7 +101,7 @@ func (h *PlannedExpenseHandler) Update(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON")
 		return
 	}
-	e, err := h.svc.Update(r.Context(), id, req)
+	e, err := h.svc.Update(r.Context(), id, req, projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return

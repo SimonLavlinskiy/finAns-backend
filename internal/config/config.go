@@ -58,9 +58,6 @@ func Load() (Config, error) {
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL is required")
 	}
-	if cfg.SessionSecret == "" {
-		return Config{}, fmt.Errorf("SESSION_SECRET is required")
-	}
 
 	return cfg, nil
 }

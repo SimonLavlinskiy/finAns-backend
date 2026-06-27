@@ -30,12 +30,12 @@ func scanPlannedExpense(row pgx.Row) (domain.PlannedExpense, error) {
 	return e, err
 }
 
-func (r *PlannedExpenseRepository) ListByStatus(ctx context.Context, status string) ([]domain.PlannedExpense, error) {
+func (r *PlannedExpenseRepository) ListByStatus(ctx context.Context, status string, projectID int64) ([]domain.PlannedExpense, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT `+peColumns+`
 		FROM planned_expenses
-		WHERE status = $1::planned_expense_status
-		ORDER BY created_at ASC`, status)
+		WHERE status = $1::planned_expense_status AND project_id = $2
+		ORDER BY created_at ASC`, status, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -61,12 +61,12 @@ func (r *PlannedExpenseRepository) Get(ctx context.Context, id int64) (domain.Pl
 	return e, err
 }
 
-func (r *PlannedExpenseRepository) Create(ctx context.Context, e domain.PlannedExpense) (domain.PlannedExpense, error) {
+func (r *PlannedExpenseRepository) Create(ctx context.Context, e domain.PlannedExpense, projectID int64) (domain.PlannedExpense, error) {
 	row := r.pool.QueryRow(ctx, `
-		INSERT INTO planned_expenses (category_id, title, cost_kopecks, due_date, url, priority)
-		VALUES ($1, $2, $3, $4, $5, $6::planned_expense_priority)
+		INSERT INTO planned_expenses (category_id, title, cost_kopecks, due_date, url, priority, project_id)
+		VALUES ($1, $2, $3, $4, $5, $6::planned_expense_priority, $7)
 		RETURNING `+peColumns,
-		e.CategoryID, e.Title, e.CostKopecks, e.DueDate, e.URL, e.Priority)
+		e.CategoryID, e.Title, e.CostKopecks, e.DueDate, e.URL, e.Priority, projectID)
 	return scanPlannedExpense(row)
 }
 

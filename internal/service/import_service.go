@@ -26,13 +26,13 @@ func NewImportService(repo *repository.ImportRepository, tagRepo *repository.Tag
 	return &ImportService{repo: repo, tagRepo: tagRepo}
 }
 
-func (s *ImportService) UploadBatch(ctx context.Context, fileName string, r io.Reader) (domain.ImportBatch, []domain.ModerationRow, error) {
+func (s *ImportService) UploadBatch(ctx context.Context, fileName string, r io.Reader, projectID int64) (domain.ImportBatch, []domain.ModerationRow, error) {
 	records, err := parseCSV(r)
 	if err != nil {
 		return domain.ImportBatch{}, nil, &apperrors.ValidationError{Message: err.Error(), Fields: map[string]string{"file": err.Error()}}
 	}
 
-	tags, err := s.tagRepo.List(ctx)
+	tags, err := s.tagRepo.List(ctx, projectID)
 	if err != nil {
 		return domain.ImportBatch{}, nil, err
 	}
@@ -189,7 +189,7 @@ func (s *ImportService) UpdateRow(ctx context.Context, id int64, in UpdateRowInp
 	return s.repo.UpdateRow(ctx, row)
 }
 
-func (s *ImportService) AcceptRow(ctx context.Context, id int64) (domain.Transaction, error) {
+func (s *ImportService) AcceptRow(ctx context.Context, id int64, projectID int64) (domain.Transaction, error) {
 	row, err := s.repo.GetRow(ctx, id)
 	if err != nil {
 		return domain.Transaction{}, err
@@ -197,7 +197,7 @@ func (s *ImportService) AcceptRow(ctx context.Context, id int64) (domain.Transac
 	if row.Status != domain.ModerationRowStatusReady {
 		return domain.Transaction{}, &apperrors.ValidationError{Message: "строка не готова к принятию"}
 	}
-	created, err := s.repo.AcceptRows(ctx, row.BatchID, []int64{id})
+	created, err := s.repo.AcceptRows(ctx, row.BatchID, []int64{id}, projectID)
 	if err != nil {
 		return domain.Transaction{}, err
 	}
@@ -208,13 +208,11 @@ func (s *ImportService) AcceptRow(ctx context.Context, id int64) (domain.Transac
 }
 
 // AcceptBatch принимает только те строки, чей статус ready.
-// repo.AcceptRows тоже фильтрует по status='ready', но мы проверяем заранее
-// чтобы вернуть понятную ошибку вместо молчаливого пропуска.
-func (s *ImportService) AcceptBatch(ctx context.Context, batchID int64, rowIDs []int64) ([]domain.Transaction, error) {
+func (s *ImportService) AcceptBatch(ctx context.Context, batchID int64, rowIDs []int64, projectID int64) ([]domain.Transaction, error) {
 	if len(rowIDs) == 0 {
 		return nil, &apperrors.ValidationError{Message: "не указаны строки для принятия"}
 	}
-	return s.repo.AcceptRows(ctx, batchID, rowIDs)
+	return s.repo.AcceptRows(ctx, batchID, rowIDs, projectID)
 }
 
 func (s *ImportService) CloseBatch(ctx context.Context, batchID int64) error {

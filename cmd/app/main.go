@@ -47,35 +47,37 @@ func main() {
 	healthSvc := service.NewHealthService(healthRepo, cfg.AppVersion)
 	healthHandler := handler.NewHealthHandler(healthSvc)
 
+	userRepo := repository.NewUserRepository(pool)
+	projectRepo := repository.NewProjectRepository(pool)
 	tagRepo := repository.NewTagRepository(pool)
 	txRepo := repository.NewTransactionRepository(pool)
 	balRepo := repository.NewBalanceRepository(pool)
-	userRepo := repository.NewUserRepository(pool)
 	analyticsRepo := repository.NewAnalyticsRepository(pool)
+	importRepo := repository.NewImportRepository(pool)
+	mpRepo := repository.NewMandatoryPaymentRepository(pool)
+	peCatRepo := repository.NewPlannedExpenseCategoryRepository(pool)
+	peRepo := repository.NewPlannedExpenseRepository(pool)
 
+	userSvc := service.NewUserService(userRepo)
+	projectSvc := service.NewProjectService(projectRepo, userRepo)
 	tagSvc := service.NewTagService(tagRepo)
 	fileSvc := service.NewFileService(cfg.UploadDir, txRepo)
 	txSvc := service.NewTransactionService(txRepo, tagRepo, tagSvc, fileSvc)
 	balSvc := service.NewBalanceService(balRepo)
-	authSvc := service.NewAuthService(userRepo, []byte(cfg.SessionSecret))
 	analyticsSvc := service.NewAnalyticsService(analyticsRepo, tagRepo)
-	importRepo := repository.NewImportRepository(pool)
 	importSvc := service.NewImportService(importRepo, tagRepo)
-
-	mpRepo := repository.NewMandatoryPaymentRepository(pool)
 	mpSvc := service.NewMandatoryPaymentService(mpRepo, tagRepo, tagSvc, txRepo)
-
-	peCatRepo := repository.NewPlannedExpenseCategoryRepository(pool)
 	peCatSvc := service.NewPlannedExpenseCategoryService(peCatRepo)
-	peRepo := repository.NewPlannedExpenseRepository(pool)
 	peSvc := service.NewPlannedExpenseService(peRepo, peCatRepo, peCatSvc)
 
 	router := handler.NewRouter(handler.RouterDeps{
 		Logger:                        logger,
 		CORSOrigins:                   cfg.CORSOrigins,
-		SessionSecret:                 []byte(cfg.SessionSecret),
+		UserRepo:                      userRepo,
+		ProjectRepo:                   projectRepo,
 		HealthHandler:                 healthHandler,
-		AuthHandler:                   handler.NewAuthHandler(authSvc, cfg.SecureCookies),
+		UserHandler:                   handler.NewUserHandler(userSvc),
+		ProjectHandler:                handler.NewProjectHandler(projectSvc),
 		TransactionHandler:            handler.NewTransactionHandler(txSvc),
 		TagHandler:                    handler.NewTagHandler(tagSvc),
 		BalanceHandler:                handler.NewBalanceHandler(balSvc),

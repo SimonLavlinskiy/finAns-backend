@@ -20,19 +20,15 @@ func NewPlannedExpenseCategoryService(repo *repository.PlannedExpenseCategoryRep
 	return &PlannedExpenseCategoryService{repo: repo}
 }
 
-func (s *PlannedExpenseCategoryService) List(ctx context.Context) ([]domain.PlannedExpenseCategory, error) {
-	return s.repo.List(ctx)
+func (s *PlannedExpenseCategoryService) List(ctx context.Context, projectID int64) ([]domain.PlannedExpenseCategory, error) {
+	return s.repo.List(ctx, projectID)
 }
 
-func (s *PlannedExpenseCategoryService) Create(ctx context.Context, req dto.CreatePlannedExpenseCategoryRequest) (domain.PlannedExpenseCategory, error) {
-	cat, err := s.validateAndCreate(ctx, req.Name, req.Color)
-	if err != nil {
-		return domain.PlannedExpenseCategory{}, err
-	}
-	return cat, nil
+func (s *PlannedExpenseCategoryService) Create(ctx context.Context, req dto.CreatePlannedExpenseCategoryRequest, projectID int64) (domain.PlannedExpenseCategory, error) {
+	return s.validateAndCreate(ctx, req.Name, req.Color, projectID)
 }
 
-func (s *PlannedExpenseCategoryService) validateAndCreate(ctx context.Context, name, color string) (domain.PlannedExpenseCategory, error) {
+func (s *PlannedExpenseCategoryService) validateAndCreate(ctx context.Context, name, color string, projectID int64) (domain.PlannedExpenseCategory, error) {
 	fields := map[string]string{}
 	if strings.TrimSpace(name) == "" {
 		fields["name"] = "обязательное поле"
@@ -43,11 +39,11 @@ func (s *PlannedExpenseCategoryService) validateAndCreate(ctx context.Context, n
 	if len(fields) > 0 {
 		return domain.PlannedExpenseCategory{}, &apperrors.ValidationError{Message: "validation failed", Fields: fields}
 	}
-	return s.repo.Create(ctx, name, color)
+	return s.repo.Create(ctx, name, color, projectID)
 }
 
-func (s *PlannedExpenseCategoryService) Reorder(ctx context.Context, ids []int64) error {
-	existing, err := s.repo.List(ctx)
+func (s *PlannedExpenseCategoryService) Reorder(ctx context.Context, ids []int64, projectID int64) error {
+	existing, err := s.repo.List(ctx, projectID)
 	if err != nil {
 		return err
 	}

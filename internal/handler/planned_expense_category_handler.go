@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/SimonLavlinskiy/finAns-backend/internal/dto"
+	"github.com/SimonLavlinskiy/finAns-backend/internal/middleware"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/service"
 	"github.com/SimonLavlinskiy/finAns-backend/pkg/httputil"
 )
@@ -23,7 +24,12 @@ func NewPlannedExpenseCategoryHandler(svc *service.PlannedExpenseCategoryService
 // @Success      200 {object} map[string]interface{}
 // @Router       /api/v1/planned-expense-categories [get]
 func (h *PlannedExpenseCategoryHandler) List(w http.ResponseWriter, r *http.Request) {
-	categories, err := h.svc.List(r.Context())
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
+	categories, err := h.svc.List(r.Context(), projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -40,12 +46,17 @@ func (h *PlannedExpenseCategoryHandler) List(w http.ResponseWriter, r *http.Requ
 // @Success      201 {object} map[string]interface{}
 // @Router       /api/v1/planned-expense-categories [post]
 func (h *PlannedExpenseCategoryHandler) Create(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
 	var req dto.CreatePlannedExpenseCategoryRequest
 	if err := decodeJSON(r, &req); err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON")
 		return
 	}
-	cat, err := h.svc.Create(r.Context(), req)
+	cat, err := h.svc.Create(r.Context(), req, projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -61,12 +72,17 @@ func (h *PlannedExpenseCategoryHandler) Create(w http.ResponseWriter, r *http.Re
 // @Success      204
 // @Router       /api/v1/planned-expense-categories/reorder [patch]
 func (h *PlannedExpenseCategoryHandler) Reorder(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
 	var req dto.ReorderPlannedExpenseCategoriesRequest
 	if err := decodeJSON(r, &req); err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON")
 		return
 	}
-	if err := h.svc.Reorder(r.Context(), req.IDs); err != nil {
+	if err := h.svc.Reorder(r.Context(), req.IDs, projectID); err != nil {
 		writeServiceError(w, err)
 		return
 	}

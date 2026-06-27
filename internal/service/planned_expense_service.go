@@ -34,20 +34,20 @@ func NewPlannedExpenseService(
 	return &PlannedExpenseService{repo: repo, catRepo: catRepo, catService: catService}
 }
 
-func (s *PlannedExpenseService) Create(ctx context.Context, req dto.CreatePlannedExpenseRequest) (dto.PlannedExpenseResponse, error) {
-	e, err := s.validateAndBuild(ctx, 0, req.Title, req.CostKopecks, req.DueDate, req.URL, req.Priority, req.CategoryID, req.NewCategory)
+func (s *PlannedExpenseService) Create(ctx context.Context, req dto.CreatePlannedExpenseRequest, projectID int64) (dto.PlannedExpenseResponse, error) {
+	e, err := s.validateAndBuild(ctx, 0, req.Title, req.CostKopecks, req.DueDate, req.URL, req.Priority, req.CategoryID, req.NewCategory, projectID)
 	if err != nil {
 		return dto.PlannedExpenseResponse{}, err
 	}
-	created, err := s.repo.Create(ctx, e)
+	created, err := s.repo.Create(ctx, e, projectID)
 	if err != nil {
 		return dto.PlannedExpenseResponse{}, err
 	}
 	return s.toResponse(created, time.Now()), nil
 }
 
-func (s *PlannedExpenseService) Update(ctx context.Context, id int64, req dto.UpdatePlannedExpenseRequest) (dto.PlannedExpenseResponse, error) {
-	e, err := s.validateAndBuild(ctx, id, req.Title, req.CostKopecks, req.DueDate, req.URL, req.Priority, req.CategoryID, req.NewCategory)
+func (s *PlannedExpenseService) Update(ctx context.Context, id int64, req dto.UpdatePlannedExpenseRequest, projectID int64) (dto.PlannedExpenseResponse, error) {
+	e, err := s.validateAndBuild(ctx, id, req.Title, req.CostKopecks, req.DueDate, req.URL, req.Priority, req.CategoryID, req.NewCategory, projectID)
 	if err != nil {
 		return dto.PlannedExpenseResponse{}, err
 	}
@@ -62,8 +62,6 @@ func (s *PlannedExpenseService) Delete(ctx context.Context, id int64) error {
 	return s.repo.Delete(ctx, id)
 }
 
-// Complete архивирует товар (см. "Архивация выполненного товара" в спеке) —
-// все поля сохраняются без изменений, меняются только status и archived_at.
 func (s *PlannedExpenseService) Complete(ctx context.Context, id int64) (dto.PlannedExpenseResponse, error) {
 	archived, err := s.repo.Archive(ctx, id, time.Now())
 	if err != nil {
@@ -72,15 +70,12 @@ func (s *PlannedExpenseService) Complete(ctx context.Context, id int64) (dto.Pla
 	return s.toResponse(archived, time.Now()), nil
 }
 
-// ListActive возвращает активные товары, сгруппированные по категориям
-// (в порядке sort_order), с товарами внутри карточки отсортированными по
-// effective_priority DESC, created_at ASC (design.md, решение 4).
-func (s *PlannedExpenseService) ListActive(ctx context.Context) ([]dto.PlannedExpenseCategoryResponse, error) {
-	categories, err := s.catRepo.List(ctx)
+func (s *PlannedExpenseService) ListActive(ctx context.Context, projectID int64) ([]dto.PlannedExpenseCategoryResponse, error) {
+	categories, err := s.catRepo.List(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
-	expenses, err := s.repo.ListByStatus(ctx, domain.PlannedExpenseStatusActive)
+	expenses, err := s.repo.ListByStatus(ctx, domain.PlannedExpenseStatusActive, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -120,10 +115,8 @@ func (s *PlannedExpenseService) ListActive(ctx context.Context) ([]dto.PlannedEx
 	return result, nil
 }
 
-// ListArchived возвращает плоский список архивных товаров, последние
-// заархивированные — первыми (без группировки по категориям, см. tasks_frontend.md 7.2).
-func (s *PlannedExpenseService) ListArchived(ctx context.Context) ([]dto.PlannedExpenseResponse, error) {
-	expenses, err := s.repo.ListByStatus(ctx, domain.PlannedExpenseStatusArchived)
+func (s *PlannedExpenseService) ListArchived(ctx context.Context, projectID int64) ([]dto.PlannedExpenseResponse, error) {
+	expenses, err := s.repo.ListByStatus(ctx, domain.PlannedExpenseStatusArchived, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +148,7 @@ func priorityRank(priority string) int {
 	}
 }
 
-func (s *PlannedExpenseService) resolveCategoryID(ctx context.Context, categoryID *int64, newCategory *dto.CreatePlannedExpenseCategoryRequest) (int64, string) {
+func (s *PlannedExpenseService) resolveCategoryID(ctx context.Context, categoryID *int64, newCategory *dto.CreatePlannedExpenseCategoryRequest, projectID int64) (int64, string) {
 	if categoryID != nil {
 		exists, err := s.catRepo.Exists(ctx, *categoryID)
 		if err != nil || !exists {
@@ -164,7 +157,7 @@ func (s *PlannedExpenseService) resolveCategoryID(ctx context.Context, categoryI
 		return *categoryID, ""
 	}
 	if newCategory != nil {
-		cat, err := s.catService.Create(ctx, *newCategory)
+		cat, err := s.catService.Create(ctx, *newCategory, projectID)
 		if err != nil {
 			return 0, "не удалось создать категорию"
 		}
@@ -183,6 +176,7 @@ func (s *PlannedExpenseService) validateAndBuild(
 	priority string,
 	categoryID *int64,
 	newCategory *dto.CreatePlannedExpenseCategoryRequest,
+	projectID int64,
 ) (domain.PlannedExpense, error) {
 	fields := map[string]string{}
 
@@ -210,7 +204,7 @@ func (s *PlannedExpenseService) validateAndBuild(
 		}
 	}
 
-	resolvedCategoryID, categoryErr := s.resolveCategoryID(ctx, categoryID, newCategory)
+	resolvedCategoryID, categoryErr := s.resolveCategoryID(ctx, categoryID, newCategory, projectID)
 	if categoryErr != "" {
 		fields["category_id"] = categoryErr
 	}

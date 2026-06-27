@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/SimonLavlinskiy/finAns-backend/internal/dto"
+	"github.com/SimonLavlinskiy/finAns-backend/internal/middleware"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/service"
 	"github.com/SimonLavlinskiy/finAns-backend/pkg/httputil"
 	"github.com/go-chi/chi/v5"
@@ -18,7 +19,12 @@ func NewMandatoryPaymentHandler(svc *service.MandatoryPaymentService) *Mandatory
 }
 
 func (h *MandatoryPaymentHandler) List(w http.ResponseWriter, r *http.Request) {
-	payments, err := h.svc.List(r.Context())
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
+	payments, err := h.svc.List(r.Context(), projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -41,12 +47,17 @@ func (h *MandatoryPaymentHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MandatoryPaymentHandler) Create(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
 	var req dto.CreateMandatoryPaymentRequest
 	if err := decodeJSON(r, &req); err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON")
 		return
 	}
-	p, err := h.svc.Create(r.Context(), req)
+	p, err := h.svc.Create(r.Context(), req, projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -87,12 +98,17 @@ func (h *MandatoryPaymentHandler) Delete(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *MandatoryPaymentHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
 	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid id")
 		return
 	}
-	p, err := h.svc.Duplicate(r.Context(), id)
+	p, err := h.svc.Duplicate(r.Context(), id, projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -101,12 +117,17 @@ func (h *MandatoryPaymentHandler) Duplicate(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *MandatoryPaymentHandler) MarkPaid(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
 	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid id")
 		return
 	}
-	p, err := h.svc.MarkPaid(r.Context(), id)
+	p, err := h.svc.MarkPaid(r.Context(), id, projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return

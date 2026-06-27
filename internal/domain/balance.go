@@ -10,6 +10,7 @@ type BalanceSnapshot struct {
 }
 
 type BalanceRepository interface {
-	GetSnapshot(ctx context.Context) (BalanceSnapshot, error)
-	UpsertInitialAmount(ctx context.Context, amount int64) error
+	GetSnapshot(ctx context.Context, projectID int64) (BalanceSnapshot, error)
+	UpsertInitialAmount(ctx context.Context, amount int64, projectID int64) error
+	SetCurrentBalanceAtomic(ctx context.Context, target int64, projectID int64) (BalanceSnapshot, error)
 }

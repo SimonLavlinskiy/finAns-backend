@@ -32,3 +32,26 @@ func (e *UnauthorizedError) Error() string {
 	}
 	return "unauthorized"
 }
+
+type ForbiddenError struct {
+	Message string
+}
+
+func (e *ForbiddenError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	return "forbidden"
+}
+
+type ConflictError struct {
+	Code    string
+	Message string
+}
+
+func (e *ConflictError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	return e.Code
+}

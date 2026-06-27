@@ -20,8 +20,8 @@ func NewTagService(repo *repository.TagRepository) *TagService {
 	return &TagService{repo: repo}
 }
 
-func (s *TagService) ListTree(ctx context.Context) ([]dto.TagResponse, error) {
-	tags, err := s.repo.List(ctx)
+func (s *TagService) ListTree(ctx context.Context, projectID int64) ([]dto.TagResponse, error) {
+	tags, err := s.repo.List(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func buildTagTree(tags []domain.Tag) []dto.TagResponse {
 const defaultTagColor = "#112250"
 const childColorLighten = 0.4
 
-func (s *TagService) Create(ctx context.Context, req dto.CreateTagRequest) (dto.TagResponse, error) {
+func (s *TagService) Create(ctx context.Context, req dto.CreateTagRequest, projectID int64) (dto.TagResponse, error) {
 	fields := map[string]string{}
 	if strings.TrimSpace(req.Name) == "" {
 		fields["name"] = "required"
@@ -90,7 +90,7 @@ func (s *TagService) Create(ctx context.Context, req dto.CreateTagRequest) (dto.
 		return dto.TagResponse{}, &apperrors.ValidationError{Fields: fields, Message: "validation failed"}
 	}
 
-	t, err := s.repo.Create(ctx, req.Name, req.Color, req.ParentID)
+	t, err := s.repo.Create(ctx, req.Name, req.Color, req.ParentID, projectID)
 	if err != nil {
 		return dto.TagResponse{}, err
 	}

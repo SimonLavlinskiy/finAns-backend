@@ -19,10 +19,10 @@ func NewTagRepository(pool *pgxpool.Pool) *TagRepository {
 	return &TagRepository{pool: pool}
 }
 
-func (r *TagRepository) List(ctx context.Context) ([]domain.Tag, error) {
+func (r *TagRepository) List(ctx context.Context, projectID int64) ([]domain.Tag, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, parent_id, name, color, created_at
-		FROM tags ORDER BY name`)
+		FROM tags WHERE project_id = $1 ORDER BY name`, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +39,7 @@ func (r *TagRepository) List(ctx context.Context) ([]domain.Tag, error) {
 	return tags, rows.Err()
 }
 
-// GetManyByIDs возвращает теги по списку ID одним запросом (для батч-загрузки).
+// GetManyByIDs loads tags by IDs (no project filter — used for internal batch lookups).
 func (r *TagRepository) GetManyByIDs(ctx context.Context, ids []int64) ([]domain.Tag, error) {
 	if len(ids) == 0 {
 		return nil, nil
@@ -73,13 +73,13 @@ func (r *TagRepository) GetByID(ctx context.Context, id int64) (domain.Tag, erro
 	return t, err
 }
 
-func (r *TagRepository) Create(ctx context.Context, name, color string, parentID *int64) (domain.Tag, error) {
+func (r *TagRepository) Create(ctx context.Context, name, color string, parentID *int64, projectID int64) (domain.Tag, error) {
 	var t domain.Tag
 	err := r.pool.QueryRow(ctx, `
-		INSERT INTO tags (name, color, parent_id)
-		VALUES ($1, $2, $3)
+		INSERT INTO tags (name, color, parent_id, project_id)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, parent_id, name, color, created_at`,
-		name, color, parentID).
+		name, color, parentID, projectID).
 		Scan(&t.ID, &t.ParentID, &t.Name, &t.Color, &t.CreatedAt)
 	return t, err
 }
@@ -142,7 +142,7 @@ func (r *TagRepository) ListDescendantIDs(ctx context.Context, id int64) ([]int6
 	return ids, rows.Err()
 }
 
-// CountUsageSubtree считает транзакции у тега и всех его потомков.
+// CountUsageSubtree counts transactions for a tag and all its descendants.
 func (r *TagRepository) CountUsageSubtree(ctx context.Context, rootID int64) (int64, error) {
 	var count int64
 	err := r.pool.QueryRow(ctx, `
@@ -178,7 +178,6 @@ func BuildTagTree(tags []domain.Tag) []domain.Tag {
 	return roots
 }
 
-// FlatToTree converts flat tags to nested dto structure helper lives in service.
 func TagTreeIDs(tags []domain.Tag, rootID int64) []int64 {
 	children := make(map[int64][]int64)
 	for _, t := range tags {
@@ -228,11 +227,6 @@ func (r *TagRepository) DeleteCascade(ctx context.Context, id int64, reassignTo 
 
 func (r *TagRepository) reassignInTx(ctx context.Context, tx pgx.Tx, fromTagID int64, toTagID *int64) error {
 	if toTagID == nil {
-		// Для корневых тегов без родителя — снимаем привязку: устанавливаем tag_id = 0 (uncategorized).
-		// Так как tag_id NOT NULL, переназначаем транзакции к тегу-заглушке или корневой метке.
-		// Здесь оставляем транзакции без тега невозможным (constraint). Удаляем только если явно cascade+delete_transactions.
-		// По умолчанию: транзакции блокируют удаление корневого тега без параметра cascade.
-		// Раз сюда дошли с cascade=true и reassignTo=nil — удаляем транзакции только если нет другого варианта.
 		_, err := tx.Exec(ctx, `DELETE FROM transactions WHERE tag_id = $1`, fromTagID)
 		return err
 	}

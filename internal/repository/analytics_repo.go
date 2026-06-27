@@ -16,14 +16,15 @@ func NewAnalyticsRepository(pool *pgxpool.Pool) *AnalyticsRepository {
 	return &AnalyticsRepository{pool: pool}
 }
 
-func (r *AnalyticsRepository) SumByDayInMonth(ctx context.Context, year, month int) ([]domain.DailySum, error) {
+func (r *AnalyticsRepository) SumByDayInMonth(ctx context.Context, year, month int, projectID int64) ([]domain.DailySum, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT EXTRACT(DAY FROM date)::int AS day, SUM(amount)
 		FROM transactions
 		WHERE category = 'expense'::transaction_category
+		  AND project_id = $3
 		  AND date >= make_date($1, $2, 1)
 		  AND date < (make_date($1, $2, 1) + INTERVAL '1 month')
-		GROUP BY day`, year, month)
+		GROUP BY day`, year, month, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -40,14 +41,15 @@ func (r *AnalyticsRepository) SumByDayInMonth(ctx context.Context, year, month i
 	return sums, rows.Err()
 }
 
-func (r *AnalyticsRepository) SumByMonthInYear(ctx context.Context, year int) ([]domain.MonthlySum, error) {
+func (r *AnalyticsRepository) SumByMonthInYear(ctx context.Context, year int, projectID int64) ([]domain.MonthlySum, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT EXTRACT(MONTH FROM date)::int AS month, SUM(amount)
 		FROM transactions
 		WHERE category = 'expense'::transaction_category
+		  AND project_id = $2
 		  AND date >= make_date($1, 1, 1)
 		  AND date < make_date($1 + 1, 1, 1)
-		GROUP BY month`, year)
+		GROUP BY month`, year, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -64,14 +66,15 @@ func (r *AnalyticsRepository) SumByMonthInYear(ctx context.Context, year int) ([
 	return sums, rows.Err()
 }
 
-func (r *AnalyticsRepository) ListExpenseTransactionsInMonth(ctx context.Context, year, month int) ([]domain.TransactionBrief, error) {
+func (r *AnalyticsRepository) ListExpenseTransactionsInMonth(ctx context.Context, year, month int, projectID int64) ([]domain.TransactionBrief, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, title, amount, EXTRACT(DAY FROM date)::int AS day, tag_id
 		FROM transactions
 		WHERE category = 'expense'::transaction_category
+		  AND project_id = $3
 		  AND date >= make_date($1, $2, 1)
 		  AND date < (make_date($1, $2, 1) + INTERVAL '1 month')
-		ORDER BY date, id`, year, month)
+		ORDER BY date, id`, year, month, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -88,12 +91,12 @@ func (r *AnalyticsRepository) ListExpenseTransactionsInMonth(ctx context.Context
 	return items, rows.Err()
 }
 
-func (r *AnalyticsRepository) ExistsExpenseBefore(ctx context.Context, before time.Time) (bool, error) {
+func (r *AnalyticsRepository) ExistsExpenseBefore(ctx context.Context, before time.Time, projectID int64) (bool, error) {
 	var exists bool
 	err := r.pool.QueryRow(ctx, `
 		SELECT EXISTS(
 			SELECT 1 FROM transactions
-			WHERE category = 'expense'::transaction_category AND date < $1
-		)`, before).Scan(&exists)
+			WHERE category = 'expense'::transaction_category AND project_id = $2 AND date < $1
+		)`, before, projectID).Scan(&exists)
 	return exists, err
 }
