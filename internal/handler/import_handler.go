@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/SimonLavlinskiy/finAns-backend/internal/dto"
+	"github.com/SimonLavlinskiy/finAns-backend/internal/middleware"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/service"
 	"github.com/SimonLavlinskiy/finAns-backend/pkg/httputil"
 	"github.com/go-chi/chi/v5"
@@ -28,6 +29,11 @@ func NewImportHandler(svc *service.ImportService) *ImportHandler {
 // @Success      201 {object} dto.ImportBatchWithRowsResponse
 // @Router       /api/v1/import/batches [post]
 func (h *ImportHandler) UploadBatch(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
 	if err := r.ParseMultipartForm(maxImportFileSize); err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid multipart")
 		return
@@ -39,7 +45,7 @@ func (h *ImportHandler) UploadBatch(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	batch, rows, err := h.svc.UploadBatch(r.Context(), header.Filename, file)
+	batch, rows, err := h.svc.UploadBatch(r.Context(), header.Filename, file, projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -117,12 +123,17 @@ func (h *ImportHandler) UpdateRow(w http.ResponseWriter, r *http.Request) {
 // @Success      201 {object} dto.AcceptedTransactionResponse
 // @Router       /api/v1/import/rows/{id}/accept [post]
 func (h *ImportHandler) AcceptRow(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
 	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid id")
 		return
 	}
-	tx, err := h.svc.AcceptRow(r.Context(), id)
+	tx, err := h.svc.AcceptRow(r.Context(), id, projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -139,6 +150,11 @@ func (h *ImportHandler) AcceptRow(w http.ResponseWriter, r *http.Request) {
 // @Success      201 {array} dto.AcceptedTransactionResponse
 // @Router       /api/v1/import/batches/{id}/accept [post]
 func (h *ImportHandler) AcceptBatch(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
 	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid id")
@@ -149,7 +165,7 @@ func (h *ImportHandler) AcceptBatch(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON")
 		return
 	}
-	txs, err := h.svc.AcceptBatch(r.Context(), id, req.RowIDs)
+	txs, err := h.svc.AcceptBatch(r.Context(), id, req.RowIDs, projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return

@@ -41,7 +41,7 @@ lint:
 	golangci-lint run ./...
 
 swagger:
-	swag init -g cmd/app/main.go -o docs --parseDependency --parseInternal
+	swag init -g cmd/app/main.go -o docs --parseInternal
 
 build:
 	go build -o bin/finans-api ./cmd/app

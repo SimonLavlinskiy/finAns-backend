@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/SimonLavlinskiy/finAns-backend/internal/dto"
+	"github.com/SimonLavlinskiy/finAns-backend/internal/middleware"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/service"
 	"github.com/SimonLavlinskiy/finAns-backend/pkg/httputil"
 )
@@ -28,6 +29,12 @@ func NewAnalyticsHandler(svc *service.AnalyticsService) *AnalyticsHandler {
 // @Success      200 {object} map[string]interface{}
 // @Router       /api/v1/analytics/expenses-calendar [get]
 func (h *AnalyticsHandler) GetExpensesCalendar(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
+
 	q := r.URL.Query()
 	level := q.Get("level")
 
@@ -43,7 +50,7 @@ func (h *AnalyticsHandler) GetExpensesCalendar(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	result, err := h.svc.GetExpensesCalendar(r.Context(), level, year, month)
+	result, err := h.svc.GetExpensesCalendar(r.Context(), level, year, month, projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return

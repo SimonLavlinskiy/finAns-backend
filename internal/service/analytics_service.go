@@ -19,7 +19,7 @@ func NewAnalyticsService(repo *repository.AnalyticsRepository, tagRepo *reposito
 	return &AnalyticsService{repo: repo, tagRepo: tagRepo}
 }
 
-func (s *AnalyticsService) GetExpensesCalendar(ctx context.Context, level string, year, month int) (domain.CalendarResult, error) {
+func (s *AnalyticsService) GetExpensesCalendar(ctx context.Context, level string, year, month int, projectID int64) (domain.CalendarResult, error) {
 	fields := map[string]string{}
 	if level != string(domain.CalendarLevelDay) && level != string(domain.CalendarLevelMonth) {
 		fields["level"] = "must be day or month"
@@ -37,13 +37,13 @@ func (s *AnalyticsService) GetExpensesCalendar(ctx context.Context, level string
 	now := time.Now().UTC()
 
 	if level == string(domain.CalendarLevelMonth) {
-		return s.getYearLevel(ctx, year, now)
+		return s.getYearLevel(ctx, year, now, projectID)
 	}
-	return s.getMonthLevel(ctx, year, month, now)
+	return s.getMonthLevel(ctx, year, month, now, projectID)
 }
 
-func (s *AnalyticsService) getYearLevel(ctx context.Context, year int, now time.Time) (domain.CalendarResult, error) {
-	sums, err := s.repo.SumByMonthInYear(ctx, year)
+func (s *AnalyticsService) getYearLevel(ctx context.Context, year int, now time.Time, projectID int64) (domain.CalendarResult, error) {
+	sums, err := s.repo.SumByMonthInYear(ctx, year, projectID)
 	if err != nil {
 		return domain.CalendarResult{}, err
 	}
@@ -53,7 +53,7 @@ func (s *AnalyticsService) getYearLevel(ctx context.Context, year int, now time.
 	}
 
 	periodStart := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC)
-	hasPrevious, err := s.repo.ExistsExpenseBefore(ctx, periodStart)
+	hasPrevious, err := s.repo.ExistsExpenseBefore(ctx, periodStart, projectID)
 	if err != nil {
 		return domain.CalendarResult{}, err
 	}
@@ -80,8 +80,8 @@ func (s *AnalyticsService) getYearLevel(ctx context.Context, year int, now time.
 	}, nil
 }
 
-func (s *AnalyticsService) getMonthLevel(ctx context.Context, year, month int, now time.Time) (domain.CalendarResult, error) {
-	sums, err := s.repo.SumByDayInMonth(ctx, year, month)
+func (s *AnalyticsService) getMonthLevel(ctx context.Context, year, month int, now time.Time, projectID int64) (domain.CalendarResult, error) {
+	sums, err := s.repo.SumByDayInMonth(ctx, year, month, projectID)
 	if err != nil {
 		return domain.CalendarResult{}, err
 	}
@@ -90,7 +90,7 @@ func (s *AnalyticsService) getMonthLevel(ctx context.Context, year, month int, n
 		byDay[ds.Day] = ds.Amount
 	}
 
-	transactions, err := s.repo.ListExpenseTransactionsInMonth(ctx, year, month)
+	transactions, err := s.repo.ListExpenseTransactionsInMonth(ctx, year, month, projectID)
 	if err != nil {
 		return domain.CalendarResult{}, err
 	}
@@ -99,13 +99,13 @@ func (s *AnalyticsService) getMonthLevel(ctx context.Context, year, month int, n
 		byDayTxs[t.Day] = append(byDayTxs[t.Day], t)
 	}
 
-	rootOf, err := s.tagRootMap(ctx)
+	rootOf, err := s.tagRootMap(ctx, projectID)
 	if err != nil {
 		return domain.CalendarResult{}, err
 	}
 
 	periodStart := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
-	hasPrevious, err := s.repo.ExistsExpenseBefore(ctx, periodStart)
+	hasPrevious, err := s.repo.ExistsExpenseBefore(ctx, periodStart, projectID)
 	if err != nil {
 		return domain.CalendarResult{}, err
 	}
@@ -156,9 +156,8 @@ type tagInfo struct {
 	color  string
 }
 
-// tagRootMap строит map tagID -> корневой тег (name/color корня) для свёртки подтегов в breakdown.
-func (s *AnalyticsService) tagRootMap(ctx context.Context) (map[int64]tagInfo, error) {
-	tags, err := s.tagRepo.List(ctx)
+func (s *AnalyticsService) tagRootMap(ctx context.Context, projectID int64) (map[int64]tagInfo, error) {
+	tags, err := s.tagRepo.List(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}

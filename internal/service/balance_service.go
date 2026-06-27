@@ -16,8 +16,8 @@ func NewBalanceService(repo *repository.BalanceRepository) *BalanceService {
 	return &BalanceService{repo: repo}
 }
 
-func (s *BalanceService) Get(ctx context.Context) (dto.BalanceResponse, error) {
-	snap, err := s.repo.GetSnapshot(ctx)
+func (s *BalanceService) Get(ctx context.Context, projectID int64) (dto.BalanceResponse, error) {
+	snap, err := s.repo.GetSnapshot(ctx, projectID)
 	if err != nil {
 		return dto.BalanceResponse{}, err
 	}
@@ -29,25 +29,22 @@ func (s *BalanceService) Get(ctx context.Context) (dto.BalanceResponse, error) {
 	}, nil
 }
 
-// UpdateFromRequest задаёт текущий баланс (balance) или базовую сумму (initial_amount).
-func (s *BalanceService) UpdateFromRequest(ctx context.Context, req dto.UpdateBalanceRequest) (dto.BalanceResponse, error) {
+func (s *BalanceService) UpdateFromRequest(ctx context.Context, req dto.UpdateBalanceRequest, projectID int64) (dto.BalanceResponse, error) {
 	switch {
 	case req.Balance != nil:
-		// Атомарная операция: всё в одной DB-транзакции
-		return s.setCurrentBalance(ctx, *req.Balance)
+		return s.setCurrentBalance(ctx, *req.Balance, projectID)
 	case req.InitialAmount != nil:
-		if err := s.repo.UpsertBalance(ctx, *req.InitialAmount); err != nil {
+		if err := s.repo.UpsertInitialAmount(ctx, *req.InitialAmount, projectID); err != nil {
 			return dto.BalanceResponse{}, err
 		}
-		return s.Get(ctx)
+		return s.Get(ctx, projectID)
 	default:
 		return dto.BalanceResponse{}, fmt.Errorf("balance or initial_amount required")
 	}
 }
 
-// setCurrentBalance атомарно перечисляет initial_amount так, чтобы текущий баланс стал target.
-func (s *BalanceService) setCurrentBalance(ctx context.Context, target int64) (dto.BalanceResponse, error) {
-	snap, err := s.repo.SetCurrentBalanceAtomic(ctx, target)
+func (s *BalanceService) setCurrentBalance(ctx context.Context, target int64, projectID int64) (dto.BalanceResponse, error) {
+	snap, err := s.repo.SetCurrentBalanceAtomic(ctx, target, projectID)
 	if err != nil {
 		return dto.BalanceResponse{}, err
 	}

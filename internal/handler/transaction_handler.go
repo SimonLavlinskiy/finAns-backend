@@ -10,6 +10,7 @@ import (
 	"github.com/SimonLavlinskiy/finAns-backend/internal/apperrors"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/domain"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/dto"
+	"github.com/SimonLavlinskiy/finAns-backend/internal/middleware"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/service"
 	"github.com/SimonLavlinskiy/finAns-backend/pkg/httputil"
 	"github.com/go-chi/chi/v5"
@@ -23,18 +24,14 @@ func NewTransactionHandler(svc *service.TransactionService) *TransactionHandler 
 	return &TransactionHandler{svc: svc}
 }
 
-// ListTransactions godoc
-// @Summary      List transactions
-// @Tags         transactions
-// @Produce      json
-// @Param        search query string false "Search title"
-// @Param        page query int false "Page"
-// @Param        per_page query int false "Per page"
-// @Success      200 {object} map[string]interface{}
-// @Router       /api/v1/transactions [get]
 func (h *TransactionHandler) List(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
 	f := parseTransactionFilters(r)
-	items, result, err := h.svc.List(r.Context(), f)
+	items, result, err := h.svc.List(r.Context(), f, projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -63,12 +60,17 @@ func (h *TransactionHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TransactionHandler) Create(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
 	var req dto.CreateTransactionRequest
 	if err := decodeJSON(r, &req); err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON")
 		return
 	}
-	item, err := h.svc.Create(r.Context(), req)
+	item, err := h.svc.Create(r.Context(), req, projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -109,12 +111,17 @@ func (h *TransactionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TransactionHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
 	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid id")
 		return
 	}
-	item, err := h.svc.Duplicate(r.Context(), id)
+	item, err := h.svc.Duplicate(r.Context(), id, projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -123,8 +130,13 @@ func (h *TransactionHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TransactionHandler) Suggestions(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := middleware.ProjectIDFromContext(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
+		return
+	}
 	q := r.URL.Query().Get("q")
-	items, err := h.svc.Suggestions(r.Context(), q)
+	items, err := h.svc.Suggestions(r.Context(), q, projectID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -189,6 +201,8 @@ func writeServiceError(w http.ResponseWriter, err error) {
 	var ve *apperrors.ValidationError
 	var nf *apperrors.NotFoundError
 	var ue *apperrors.UnauthorizedError
+	var fe *apperrors.ForbiddenError
+	var ce *apperrors.ConflictError
 	switch {
 	case errors.As(err, &ve):
 		httputil.WriteValidationError(w, ve.Message, ve.Fields)
@@ -196,6 +210,10 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		httputil.WriteError(w, http.StatusNotFound, "NOT_FOUND", nf.Error())
 	case errors.As(err, &ue):
 		httputil.WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", ue.Error())
+	case errors.As(err, &fe):
+		httputil.WriteError(w, http.StatusForbidden, "FORBIDDEN", fe.Error())
+	case errors.As(err, &ce):
+		httputil.WriteError(w, http.StatusConflict, ce.Code, ce.Error())
 	default:
 		httputil.WriteError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 	}

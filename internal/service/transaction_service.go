@@ -22,14 +22,13 @@ func NewTransactionService(txRepo *repository.TransactionRepository, tagRepo *re
 	return &TransactionService{txRepo: txRepo, tagRepo: tagRepo, tagSvc: tagSvc, fileSvc: fileSvc}
 }
 
-func (s *TransactionService) List(ctx context.Context, f domain.TransactionFilters) ([]dto.TransactionResponse, domain.ListResult, error) {
+func (s *TransactionService) List(ctx context.Context, f domain.TransactionFilters, projectID int64) ([]dto.TransactionResponse, domain.ListResult, error) {
 	normalizeFilters(&f)
-	result, err := s.txRepo.List(ctx, f)
+	result, err := s.txRepo.List(ctx, f, projectID)
 	if err != nil {
 		return nil, domain.ListResult{}, err
 	}
 
-	// Батч-загрузка тегов: один запрос вместо N запросов (устраняет N+1)
 	tagIDs := make([]int64, len(result.Items))
 	for i, t := range result.Items {
 		tagIDs[i] = t.TagID
@@ -75,12 +74,12 @@ func (s *TransactionService) Get(ctx context.Context, id int64) (dto.Transaction
 	return s.toResponse(ctx, t)
 }
 
-func (s *TransactionService) Create(ctx context.Context, req dto.CreateTransactionRequest) (dto.TransactionResponse, error) {
+func (s *TransactionService) Create(ctx context.Context, req dto.CreateTransactionRequest, projectID int64) (dto.TransactionResponse, error) {
 	t, err := s.validateAndBuild(ctx, req.Title, req.Amount, req.Date, req.TagID, req.Category, req.Specificity, req.Comment, req.URL)
 	if err != nil {
 		return dto.TransactionResponse{}, err
 	}
-	created, err := s.txRepo.Create(ctx, t)
+	created, err := s.txRepo.Create(ctx, t, projectID)
 	if err != nil {
 		return dto.TransactionResponse{}, err
 	}
@@ -107,24 +106,18 @@ func (s *TransactionService) Update(ctx context.Context, id int64, req dto.Updat
 	return s.toResponse(ctx, updated)
 }
 
-// Delete удаляет транзакцию и связанный файл с диска.
 func (s *TransactionService) Delete(ctx context.Context, id int64) error {
 	tx, err := s.txRepo.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
-	// Сначала удаляем файл, если есть
 	if tx.FilePath != nil && *tx.FilePath != "" {
-		if err := s.fileSvc.Delete(ctx, id); err != nil {
-			// Логируем, но не блокируем удаление транзакции
-			_ = err
-		}
+		_ = s.fileSvc.Delete(ctx, id)
 	}
 	return s.txRepo.Delete(ctx, id)
 }
 
-// Duplicate создаёт копию без file_path — каждый файл должен принадлежать одной записи.
-func (s *TransactionService) Duplicate(ctx context.Context, id int64) (dto.TransactionResponse, error) {
+func (s *TransactionService) Duplicate(ctx context.Context, id int64, projectID int64) (dto.TransactionResponse, error) {
 	existing, err := s.txRepo.GetByID(ctx, id)
 	if err != nil {
 		return dto.TransactionResponse{}, err
@@ -134,20 +127,19 @@ func (s *TransactionService) Duplicate(ctx context.Context, id int64) (dto.Trans
 	copy.Date = time.Now().UTC().Truncate(24 * time.Hour)
 	copy.CreatedAt = time.Time{}
 	copy.UpdatedAt = time.Time{}
-	// Файл не копируем — у каждой транзакции свой файл
 	copy.FilePath = nil
 	copy.FileName = nil
 	copy.FileMIME = nil
 
-	created, err := s.txRepo.Create(ctx, copy)
+	created, err := s.txRepo.Create(ctx, copy, projectID)
 	if err != nil {
 		return dto.TransactionResponse{}, err
 	}
 	return s.toResponse(ctx, created)
 }
 
-func (s *TransactionService) Suggestions(ctx context.Context, q string) ([]string, error) {
-	return s.txRepo.Suggestions(ctx, q, 10)
+func (s *TransactionService) Suggestions(ctx context.Context, q string, projectID int64) ([]string, error) {
+	return s.txRepo.Suggestions(ctx, q, 10, projectID)
 }
 
 func (s *TransactionService) toResponse(ctx context.Context, t domain.Transaction) (dto.TransactionResponse, error) {

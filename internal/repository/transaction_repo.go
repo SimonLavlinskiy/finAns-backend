@@ -21,10 +21,10 @@ func NewTransactionRepository(pool *pgxpool.Pool) *TransactionRepository {
 	return &TransactionRepository{pool: pool}
 }
 
-func (r *TransactionRepository) List(ctx context.Context, f domain.TransactionFilters) (domain.ListResult, error) {
-	where := []string{"1=1"}
-	args := []any{}
-	argN := 1
+func (r *TransactionRepository) List(ctx context.Context, f domain.TransactionFilters, projectID int64) (domain.ListResult, error) {
+	where := []string{"project_id = $1"}
+	args := []any{projectID}
+	argN := 2
 
 	if f.Search != "" {
 		where = append(where, fmt.Sprintf("title ILIKE $%d", argN))
@@ -123,15 +123,15 @@ func (r *TransactionRepository) GetByID(ctx context.Context, id int64) (domain.T
 	return t, err
 }
 
-func (r *TransactionRepository) Create(ctx context.Context, t domain.Transaction) (domain.Transaction, error) {
+func (r *TransactionRepository) Create(ctx context.Context, t domain.Transaction, projectID int64) (domain.Transaction, error) {
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO transactions (title, amount, date, tag_id, category, specificity, comment, url,
-		                          file_path, file_name, file_mime_type)
-		VALUES ($1,$2,$3,$4,$5::transaction_category,$6::transaction_specificity,$7,$8,$9,$10,$11)
+		                          file_path, file_name, file_mime_type, project_id)
+		VALUES ($1,$2,$3,$4,$5::transaction_category,$6::transaction_specificity,$7,$8,$9,$10,$11,$12)
 		RETURNING id, title, amount, date, tag_id, category::text, specificity::text,
 		          comment, url, file_path, file_name, file_mime_type, created_at, updated_at`,
 		t.Title, t.Amount, t.Date, t.TagID, t.Category, t.Specificity,
-		t.Comment, t.URL, t.FilePath, t.FileName, t.FileMIME)
+		t.Comment, t.URL, t.FilePath, t.FileName, t.FileMIME, projectID)
 	return scanTransactionRow(row)
 }
 
@@ -165,11 +165,11 @@ func (r *TransactionRepository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (r *TransactionRepository) Suggestions(ctx context.Context, q string, limit int) ([]string, error) {
+func (r *TransactionRepository) Suggestions(ctx context.Context, q string, limit int, projectID int64) ([]string, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT DISTINCT title FROM transactions
-		WHERE title ILIKE $1
-		ORDER BY title LIMIT $2`, "%"+q+"%", limit)
+		WHERE project_id = $1 AND title ILIKE $2
+		ORDER BY title LIMIT $3`, projectID, "%"+q+"%", limit)
 	if err != nil {
 		return nil, err
 	}

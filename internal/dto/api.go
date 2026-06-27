@@ -4,15 +4,6 @@ type DataResponse[T any] struct {
 	Data T `json:"data"`
 }
 
-type LoginRequest struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
-}
-
-type UserResponse struct {
-	Login string `json:"login"`
-}
-
 type TagParent struct {
 	ID    int64  `json:"id"`
 	Name  string `json:"name"`

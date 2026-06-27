@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/SimonLavlinskiy/finAns-backend/internal/domain"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/middleware"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -15,18 +16,22 @@ import (
 )
 
 type RouterDeps struct {
-	Logger                   *slog.Logger
-	CORSOrigins              []string
-	SessionSecret            []byte
-	HealthHandler            *HealthHandler
-	AuthHandler              *AuthHandler
-	TransactionHandler       *TransactionHandler
-	TagHandler               *TagHandler
-	BalanceHandler           *BalanceHandler
-	FileHandler              *FileHandler
-	AnalyticsHandler         *AnalyticsHandler
-	ImportHandler            *ImportHandler
-	MandatoryPaymentHandler  *MandatoryPaymentHandler
+	Logger                        *slog.Logger
+	CORSOrigins                   []string
+	UserRepo                      domain.UserRepository
+	ProjectRepo                   domain.ProjectRepository
+	HealthHandler                 *HealthHandler
+	UserHandler                   *UserHandler
+	ProjectHandler                *ProjectHandler
+	TransactionHandler            *TransactionHandler
+	TagHandler                    *TagHandler
+	BalanceHandler                *BalanceHandler
+	FileHandler                   *FileHandler
+	AnalyticsHandler              *AnalyticsHandler
+	ImportHandler                 *ImportHandler
+	MandatoryPaymentHandler       *MandatoryPaymentHandler
+	PlannedExpenseCategoryHandler *PlannedExpenseCategoryHandler
+	PlannedExpenseHandler         *PlannedExpenseHandler
 }
 
 func NewRouter(deps RouterDeps) http.Handler {
@@ -41,7 +46,7 @@ func NewRouter(deps RouterDeps) http.Handler {
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   deps.CORSOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-ID"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-ID", "X-User-ID", "X-Project-ID"},
 		ExposedHeaders:   []string{"X-Request-ID"},
 		AllowCredentials: true,
 		MaxAge:           300,
@@ -54,56 +59,84 @@ func NewRouter(deps RouterDeps) http.Handler {
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Get("/health", deps.HealthHandler.HealthCheck)
 
-		api.Post("/auth/login", deps.AuthHandler.Login)
-		api.Post("/auth/logout", deps.AuthHandler.Logout)
+		// Public user endpoints (no auth required)
+		api.Get("/users", deps.UserHandler.List)
+		api.Post("/users", deps.UserHandler.Create)
 
-		api.Group(func(protected chi.Router) {
-			protected.Use(middleware.RequireAuth(deps.SessionSecret))
+		// User-authenticated routes (require X-User-ID)
+		api.Group(func(userRoutes chi.Router) {
+			userRoutes.Use(middleware.UserContextMiddleware(deps.UserRepo))
 
-			protected.Get("/auth/me", deps.AuthHandler.Me)
+			// Project management (user context only, no project context needed)
+			userRoutes.Get("/projects", deps.ProjectHandler.List)
+			userRoutes.Post("/projects", deps.ProjectHandler.Create)
 
-			protected.Route("/transactions", func(tr chi.Router) {
-				tr.Get("/", deps.TransactionHandler.List)
-				tr.Post("/", deps.TransactionHandler.Create)
-				tr.Get("/suggestions", deps.TransactionHandler.Suggestions)
-				tr.Get("/{id}", deps.TransactionHandler.Get)
-				tr.Put("/{id}", deps.TransactionHandler.Update)
-				tr.Delete("/{id}", deps.TransactionHandler.Delete)
-				tr.Post("/{id}/duplicate", deps.TransactionHandler.Duplicate)
-				tr.Post("/{id}/file", deps.FileHandler.Upload)
-				tr.Delete("/{id}/file", deps.FileHandler.Delete)
-			})
+			// Data routes (require both user and project context)
+			userRoutes.Group(func(projectRoutes chi.Router) {
+				projectRoutes.Use(middleware.ProjectContextMiddleware(deps.ProjectRepo))
 
-			protected.Route("/tags", func(tr chi.Router) {
-				tr.Get("/", deps.TagHandler.List)
-				tr.Post("/", deps.TagHandler.Create)
-				tr.Put("/{id}", deps.TagHandler.Update)
-				tr.Delete("/{id}", deps.TagHandler.Delete)
-				tr.Get("/{id}/usage", deps.TagHandler.Usage)
-			})
+				projectRoutes.Get("/projects/{id}", deps.ProjectHandler.Get)
+				projectRoutes.Get("/projects/{id}/members", deps.ProjectHandler.ListMembers)
+				projectRoutes.Post("/projects/{id}/members", deps.ProjectHandler.AddMember)
+				projectRoutes.Delete("/projects/{id}/members/{userID}", deps.ProjectHandler.RemoveMember)
 
-			protected.Get("/balance", deps.BalanceHandler.Get)
-			protected.Put("/balance", deps.BalanceHandler.Update)
+				projectRoutes.Route("/transactions", func(tr chi.Router) {
+					tr.Get("/", deps.TransactionHandler.List)
+					tr.Post("/", deps.TransactionHandler.Create)
+					tr.Get("/suggestions", deps.TransactionHandler.Suggestions)
+					tr.Get("/{id}", deps.TransactionHandler.Get)
+					tr.Put("/{id}", deps.TransactionHandler.Update)
+					tr.Delete("/{id}", deps.TransactionHandler.Delete)
+					tr.Post("/{id}/duplicate", deps.TransactionHandler.Duplicate)
+					tr.Post("/{id}/file", deps.FileHandler.Upload)
+					tr.Delete("/{id}/file", deps.FileHandler.Delete)
+				})
 
-			protected.Get("/analytics/expenses-calendar", deps.AnalyticsHandler.GetExpensesCalendar)
+				projectRoutes.Route("/tags", func(tr chi.Router) {
+					tr.Get("/", deps.TagHandler.List)
+					tr.Post("/", deps.TagHandler.Create)
+					tr.Put("/{id}", deps.TagHandler.Update)
+					tr.Delete("/{id}", deps.TagHandler.Delete)
+					tr.Get("/{id}/usage", deps.TagHandler.Usage)
+				})
 
-			protected.Route("/import", func(ir chi.Router) {
-				ir.Post("/batches", deps.ImportHandler.UploadBatch)
-				ir.Get("/batches/active", deps.ImportHandler.GetActiveBatch)
-				ir.Post("/batches/{id}/accept", deps.ImportHandler.AcceptBatch)
-				ir.Post("/batches/{id}/close", deps.ImportHandler.CloseBatch)
-				ir.Patch("/rows/{id}", deps.ImportHandler.UpdateRow)
-				ir.Post("/rows/{id}/accept", deps.ImportHandler.AcceptRow)
-			})
+				projectRoutes.Get("/balance", deps.BalanceHandler.Get)
+				projectRoutes.Put("/balance", deps.BalanceHandler.Update)
 
-			protected.Route("/mandatory-payments", func(mp chi.Router) {
-				mp.Get("/", deps.MandatoryPaymentHandler.List)
-				mp.Post("/", deps.MandatoryPaymentHandler.Create)
-				mp.Get("/{id}", deps.MandatoryPaymentHandler.Get)
-				mp.Put("/{id}", deps.MandatoryPaymentHandler.Update)
-				mp.Delete("/{id}", deps.MandatoryPaymentHandler.Delete)
-				mp.Post("/{id}/duplicate", deps.MandatoryPaymentHandler.Duplicate)
-				mp.Post("/{id}/mark-paid", deps.MandatoryPaymentHandler.MarkPaid)
+				projectRoutes.Get("/analytics/expenses-calendar", deps.AnalyticsHandler.GetExpensesCalendar)
+
+				projectRoutes.Route("/import", func(ir chi.Router) {
+					ir.Post("/batches", deps.ImportHandler.UploadBatch)
+					ir.Get("/batches/active", deps.ImportHandler.GetActiveBatch)
+					ir.Post("/batches/{id}/accept", deps.ImportHandler.AcceptBatch)
+					ir.Post("/batches/{id}/close", deps.ImportHandler.CloseBatch)
+					ir.Patch("/rows/{id}", deps.ImportHandler.UpdateRow)
+					ir.Post("/rows/{id}/accept", deps.ImportHandler.AcceptRow)
+				})
+
+				projectRoutes.Route("/mandatory-payments", func(mp chi.Router) {
+					mp.Get("/", deps.MandatoryPaymentHandler.List)
+					mp.Post("/", deps.MandatoryPaymentHandler.Create)
+					mp.Get("/{id}", deps.MandatoryPaymentHandler.Get)
+					mp.Put("/{id}", deps.MandatoryPaymentHandler.Update)
+					mp.Delete("/{id}", deps.MandatoryPaymentHandler.Delete)
+					mp.Post("/{id}/duplicate", deps.MandatoryPaymentHandler.Duplicate)
+					mp.Post("/{id}/mark-paid", deps.MandatoryPaymentHandler.MarkPaid)
+				})
+
+				projectRoutes.Route("/planned-expense-categories", func(pc chi.Router) {
+					pc.Get("/", deps.PlannedExpenseCategoryHandler.List)
+					pc.Post("/", deps.PlannedExpenseCategoryHandler.Create)
+					pc.Patch("/reorder", deps.PlannedExpenseCategoryHandler.Reorder)
+				})
+
+				projectRoutes.Route("/planned-expenses", func(pe chi.Router) {
+					pe.Get("/", deps.PlannedExpenseHandler.List)
+					pe.Post("/", deps.PlannedExpenseHandler.Create)
+					pe.Patch("/{id}", deps.PlannedExpenseHandler.Update)
+					pe.Delete("/{id}", deps.PlannedExpenseHandler.Delete)
+					pe.Post("/{id}/complete", deps.PlannedExpenseHandler.Complete)
+				})
 			})
 		})
 	})

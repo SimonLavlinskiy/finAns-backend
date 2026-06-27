@@ -30,11 +30,12 @@ func scanMandatoryPayment(row pgx.Row) (domain.MandatoryPayment, error) {
 	return p, err
 }
 
-func (r *MandatoryPaymentRepository) List(ctx context.Context) ([]domain.MandatoryPayment, error) {
+func (r *MandatoryPaymentRepository) List(ctx context.Context, projectID int64) ([]domain.MandatoryPayment, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT `+mpColumns+`
 		FROM mandatory_payments
-		ORDER BY next_payment_date ASC`)
+		WHERE project_id = $1
+		ORDER BY next_payment_date ASC`, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -62,12 +63,12 @@ func (r *MandatoryPaymentRepository) GetByID(ctx context.Context, id int64) (dom
 	return p, err
 }
 
-func (r *MandatoryPaymentRepository) Create(ctx context.Context, p domain.MandatoryPayment) (domain.MandatoryPayment, error) {
+func (r *MandatoryPaymentRepository) Create(ctx context.Context, p domain.MandatoryPayment, projectID int64) (domain.MandatoryPayment, error) {
 	row := r.pool.QueryRow(ctx, `
-		INSERT INTO mandatory_payments (title, amount, tag_id, recurrence, next_payment_date)
-		VALUES ($1, $2, $3, $4::payment_recurrence, $5)
+		INSERT INTO mandatory_payments (title, amount, tag_id, recurrence, next_payment_date, project_id)
+		VALUES ($1, $2, $3, $4::payment_recurrence, $5, $6)
 		RETURNING `+mpColumns,
-		p.Title, p.Amount, p.TagID, p.Recurrence, p.NextPaymentDate.Format("2006-01-02"))
+		p.Title, p.Amount, p.TagID, p.Recurrence, p.NextPaymentDate.Format("2006-01-02"), projectID)
 	created, err := scanMandatoryPayment(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.MandatoryPayment{}, &apperrors.NotFoundError{Resource: "mandatory_payment"}
