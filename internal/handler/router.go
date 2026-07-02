@@ -125,6 +125,7 @@ func NewRouter(deps RouterDeps) http.Handler {
 					mp.Delete("/{id}", deps.MandatoryPaymentHandler.Delete)
 					mp.Post("/{id}/duplicate", deps.MandatoryPaymentHandler.Duplicate)
 					mp.Post("/{id}/mark-paid", deps.MandatoryPaymentHandler.MarkPaid)
+					mp.Post("/{id}/unmark-paid", deps.MandatoryPaymentHandler.UnmarkPaid)
 				})
 
 				projectRoutes.Route("/planned-expense-categories", func(pc chi.Router) {

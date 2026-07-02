@@ -19,13 +19,14 @@ func NewMandatoryPaymentRepository(pool *pgxpool.Pool) *MandatoryPaymentReposito
 	return &MandatoryPaymentRepository{pool: pool}
 }
 
-const mpColumns = `id, title, amount, tag_id, recurrence::text, next_payment_date, created_at, updated_at`
+const mpColumns = `id, title, amount, tag_id, recurrence::text, next_payment_date, last_paid_at, last_transaction_id, created_at, updated_at`
 
 func scanMandatoryPayment(row pgx.Row) (domain.MandatoryPayment, error) {
 	var p domain.MandatoryPayment
 	err := row.Scan(
 		&p.ID, &p.Title, &p.Amount, &p.TagID, &p.Recurrence,
-		&p.NextPaymentDate, &p.CreatedAt, &p.UpdatedAt,
+		&p.NextPaymentDate, &p.LastPaidAt, &p.LastTransactionID,
+		&p.CreatedAt, &p.UpdatedAt,
 	)
 	return p, err
 }
@@ -109,6 +110,35 @@ func (r *MandatoryPaymentRepository) AdvanceDate(ctx context.Context, id int64, 
 		WHERE id=$1
 		RETURNING `+mpColumns,
 		id, newDate.Format("2006-01-02"))
+	updated, err := scanMandatoryPayment(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.MandatoryPayment{}, &apperrors.NotFoundError{Resource: "mandatory_payment"}
+	}
+	return updated, err
+}
+
+func (r *MandatoryPaymentRepository) SetPaid(ctx context.Context, id int64, newDate time.Time, transactionID int64) (domain.MandatoryPayment, error) {
+	now := time.Now()
+	row := r.pool.QueryRow(ctx, `
+		UPDATE mandatory_payments
+		SET next_payment_date=$2, last_paid_at=$3, last_transaction_id=$4, updated_at=NOW()
+		WHERE id=$1
+		RETURNING `+mpColumns,
+		id, newDate.Format("2006-01-02"), now, transactionID)
+	updated, err := scanMandatoryPayment(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.MandatoryPayment{}, &apperrors.NotFoundError{Resource: "mandatory_payment"}
+	}
+	return updated, err
+}
+
+func (r *MandatoryPaymentRepository) UnsetPaid(ctx context.Context, id int64, prevDate time.Time) (domain.MandatoryPayment, error) {
+	row := r.pool.QueryRow(ctx, `
+		UPDATE mandatory_payments
+		SET next_payment_date=$2, last_paid_at=NULL, last_transaction_id=NULL, updated_at=NOW()
+		WHERE id=$1
+		RETURNING `+mpColumns,
+		id, prevDate.Format("2006-01-02"))
 	updated, err := scanMandatoryPayment(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.MandatoryPayment{}, &apperrors.NotFoundError{Resource: "mandatory_payment"}

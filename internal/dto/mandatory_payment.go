@@ -7,6 +7,7 @@ type MandatoryPaymentResponse struct {
 	Tag             TransactionTag `json:"tag"`
 	Recurrence      string         `json:"recurrence"`
 	NextPaymentDate string         `json:"next_payment_date"` // "YYYY-MM-DD"
+	LastPaidAt      *string        `json:"last_paid_at"`      // RFC3339 or null
 	CreatedAt       string         `json:"created_at"`
 	UpdatedAt       string         `json:"updated_at"`
 }

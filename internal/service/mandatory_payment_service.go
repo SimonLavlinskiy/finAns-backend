@@ -103,15 +103,15 @@ func (s *MandatoryPaymentService) Duplicate(ctx context.Context, id int64, proje
 	return s.toResponse(ctx, created)
 }
 
-// MarkPaid фиксирует факт оплаты: создаёт транзакцию-расход за платёж
-// и сдвигает next_payment_date на следующий период.
+// MarkPaid фиксирует факт оплаты: создаёт транзакцию-расход за платёж,
+// сдвигает next_payment_date на следующий период и записывает last_paid_at.
 func (s *MandatoryPaymentService) MarkPaid(ctx context.Context, id int64, projectID int64) (dto.MandatoryPaymentResponse, error) {
 	p, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return dto.MandatoryPaymentResponse{}, err
 	}
 
-	_, err = s.txRepo.Create(ctx, domain.Transaction{
+	tx, err := s.txRepo.Create(ctx, domain.Transaction{
 		Title:       p.Title,
 		Amount:      p.Amount,
 		Date:        p.NextPaymentDate,
@@ -124,7 +124,32 @@ func (s *MandatoryPaymentService) MarkPaid(ctx context.Context, id int64, projec
 	}
 
 	newDate := advanceDate(p.NextPaymentDate, p.Recurrence)
-	updated, err := s.repo.AdvanceDate(ctx, id, newDate)
+	updated, err := s.repo.SetPaid(ctx, id, newDate, tx.ID)
+	if err != nil {
+		return dto.MandatoryPaymentResponse{}, err
+	}
+	return s.toResponse(ctx, updated)
+}
+
+// UnmarkPaid откатывает оплату: удаляет транзакцию и возвращает next_payment_date.
+func (s *MandatoryPaymentService) UnmarkPaid(ctx context.Context, id int64) (dto.MandatoryPaymentResponse, error) {
+	p, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return dto.MandatoryPaymentResponse{}, err
+	}
+	if p.LastPaidAt == nil {
+		return dto.MandatoryPaymentResponse{}, &apperrors.ValidationError{
+			Message: "payment is not paid",
+			Fields:  map[string]string{"status": "not paid"},
+		}
+	}
+
+	if p.LastTransactionID != nil {
+		_ = s.txRepo.Delete(ctx, *p.LastTransactionID)
+	}
+
+	prevDate := reverseDate(p.NextPaymentDate, p.Recurrence)
+	updated, err := s.repo.UnsetPaid(ctx, id, prevDate)
 	if err != nil {
 		return dto.MandatoryPaymentResponse{}, err
 	}
@@ -153,6 +178,26 @@ func advanceDate(t time.Time, recurrence string) time.Time {
 	}
 }
 
+// reverseDate — обратная к advanceDate: возвращает дату на один период назад.
+func reverseDate(t time.Time, recurrence string) time.Time {
+	switch recurrence {
+	case "daily":
+		return t.AddDate(0, 0, -1)
+	case "weekly":
+		return t.AddDate(0, 0, -7)
+	case "monthly":
+		return addMonthsClamped(t, -1)
+	case "quarterly":
+		return addMonthsClamped(t, -3)
+	case "semi_annual":
+		return addMonthsClamped(t, -6)
+	case "yearly":
+		return addMonthsClamped(t, -12)
+	default:
+		return addMonthsClamped(t, -1)
+	}
+}
+
 // addMonthsClamped добавляет n месяцев, ограничивая день последним днём целевого месяца.
 func addMonthsClamped(t time.Time, months int) time.Time {
 	y, m, d := t.Date()
@@ -161,6 +206,10 @@ func addMonthsClamped(t time.Time, months int) time.Time {
 	for targetMonth > 12 {
 		targetMonth -= 12
 		targetYear++
+	}
+	for targetMonth <= 0 {
+		targetMonth += 12
+		targetYear--
 	}
 	// Последний день целевого месяца
 	lastDay := time.Date(targetYear, targetMonth+1, 0, 0, 0, 0, 0, t.Location()).Day()
@@ -224,7 +273,7 @@ func (s *MandatoryPaymentService) toResponse(ctx context.Context, p domain.Manda
 	if err != nil {
 		return dto.MandatoryPaymentResponse{}, err
 	}
-	return dto.MandatoryPaymentResponse{
+	resp := dto.MandatoryPaymentResponse{
 		ID:              p.ID,
 		Title:           p.Title,
 		Amount:          p.Amount,
@@ -233,5 +282,10 @@ func (s *MandatoryPaymentService) toResponse(ctx context.Context, p domain.Manda
 		NextPaymentDate: p.NextPaymentDate.Format("2006-01-02"),
 		CreatedAt:       p.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:       p.UpdatedAt.Format(time.RFC3339),
-	}, nil
+	}
+	if p.LastPaidAt != nil {
+		s := p.LastPaidAt.Format(time.RFC3339)
+		resp.LastPaidAt = &s
+	}
+	return resp, nil
 }

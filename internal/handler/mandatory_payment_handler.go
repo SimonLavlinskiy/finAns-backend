@@ -134,3 +134,17 @@ func (h *MandatoryPaymentHandler) MarkPaid(w http.ResponseWriter, r *http.Reques
 	}
 	httputil.WriteData(w, http.StatusOK, p)
 }
+
+func (h *MandatoryPaymentHandler) UnmarkPaid(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid id")
+		return
+	}
+	p, err := h.svc.UnmarkPaid(r.Context(), id)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	httputil.WriteData(w, http.StatusOK, p)
+}
