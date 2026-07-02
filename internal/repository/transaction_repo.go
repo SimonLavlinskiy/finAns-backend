@@ -91,8 +91,8 @@ func (r *TransactionRepository) List(ctx context.Context, f domain.TransactionFi
 		SELECT id, title, amount, date, tag_id, category::text, specificity::text,
 		       comment, url, file_path, file_name, file_mime_type, created_at, updated_at
 		FROM transactions WHERE %s
-		ORDER BY %s %s
-		LIMIT $%d OFFSET $%d`, whereSQL, sortBy, sortOrder, argN, argN+1)
+		ORDER BY %s %s, id %s
+		LIMIT $%d OFFSET $%d`, whereSQL, sortBy, sortOrder, sortOrder, argN, argN+1)
 
 	rows, err := r.pool.Query(ctx, listQ, listArgs...)
 	if err != nil {
