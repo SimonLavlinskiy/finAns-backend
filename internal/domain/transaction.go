@@ -42,6 +42,19 @@ type ListResult struct {
 	Total int64
 }
 
+// TransactionSuggestion — одна историческая комбинация «наименование + сумма +
+// категория + тег + вид платежа» с частотой использования, для автодополнения
+// поля «Наименование» в форме транзакции.
+type TransactionSuggestion struct {
+	Title       string
+	Amount      int64
+	TagID       int64
+	Category    string
+	Specificity string
+	Count       int
+	LastUsed    time.Time
+}
+
 type TransactionRepository interface {
 	List(ctx context.Context, f TransactionFilters) (ListResult, error)
 	GetByID(ctx context.Context, id int64) (Transaction, error)

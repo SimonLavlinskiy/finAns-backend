@@ -165,25 +165,50 @@ func (r *TransactionRepository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (r *TransactionRepository) Suggestions(ctx context.Context, q string, limit int, projectID int64) ([]string, error) {
+// Suggestions возвращает все исторические комбинации «наименование + сумма +
+// категория + тег + вид платежа» проекта, у которых хотя бы одно слово
+// наименования начинается с q (регистронезависимо), вместе со счётчиком
+// использований и датой последнего использования. Группировку по наименованию
+// (выбор самой частой комбинации) и финальную сортировку по алфавиту делает
+// вызывающий код (сервис), т.к. это проще выразить в Go, чем в SQL.
+func (r *TransactionRepository) Suggestions(ctx context.Context, q string, projectID int64) ([]domain.TransactionSuggestion, error) {
+	// Разбиваем наименование на слова по пробелам и матчим q как префикс
+	// любого слова через ILIKE — в отличие от regex с POSIX-классами
+	// [:alnum:], это корректно работает и для кириллицы (POSIX character
+	// classes в некоторых regex-движках ASCII-only, что молча ломает
+	// word-boundary матчинг не-латинских алфавитов).
 	rows, err := r.pool.Query(ctx, `
-		SELECT DISTINCT title FROM transactions
-		WHERE project_id = $1 AND title ILIKE $2
-		ORDER BY title LIMIT $3`, projectID, "%"+q+"%", limit)
+		SELECT title, amount, tag_id, category::text, specificity::text,
+		       count(*) AS cnt, max(date) AS last_used
+		FROM transactions
+		WHERE project_id = $1
+		  AND EXISTS (
+		    SELECT 1 FROM unnest(regexp_split_to_array(title, '\s+')) AS word
+		    WHERE word ILIKE $2 ESCAPE '\'
+		  )
+		GROUP BY title, amount, tag_id, category, specificity`, projectID, likePrefixPattern(q))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var titles []string
+	var items []domain.TransactionSuggestion
 	for rows.Next() {
-		var title string
-		if err := rows.Scan(&title); err != nil {
+		var s domain.TransactionSuggestion
+		if err := rows.Scan(&s.Title, &s.Amount, &s.TagID, &s.Category, &s.Specificity, &s.Count, &s.LastUsed); err != nil {
 			return nil, err
 		}
-		titles = append(titles, title)
+		items = append(items, s)
 	}
-	return titles, rows.Err()
+	return items, rows.Err()
+}
+
+// likePrefixPattern строит ILIKE-паттерн «q%», экранируя LIKE-спецсимволы
+// (`\`, `%`, `_`) в пользовательском вводе — иначе `%`/`_` в поисковой строке
+// вели бы себя как wildcard вместо буквальных символов.
+func likePrefixPattern(q string) string {
+	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(q)
+	return escaped + "%"
 }
 
 func (r *TransactionRepository) UpdateFile(ctx context.Context, id int64, path, name, mime *string) error {

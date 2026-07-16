@@ -83,3 +83,26 @@ func TestValidateAndBuild_BadRecurrence(t *testing.T) {
 		t.Fatal("expected validation error for bad recurrence")
 	}
 }
+
+func TestIsPaidCurrentPeriod_StaleAfterPeriodEnds(t *testing.T) {
+	past := time.Now().Add(-48 * time.Hour)
+	nextPaymentDate := time.Now().Add(-24 * time.Hour) // уже прошла — новый период наступил
+	if isPaidCurrentPeriod(&past, nextPaymentDate) {
+		t.Error("expected false: next_payment_date уже наступил, статус не должен считаться оплаченным")
+	}
+}
+
+func TestIsPaidCurrentPeriod_TrueWithinPeriod(t *testing.T) {
+	paidAt := time.Now().Add(-1 * time.Hour)
+	nextPaymentDate := time.Now().Add(30 * 24 * time.Hour) // в будущем — текущий период ещё не закончился
+	if !isPaidCurrentPeriod(&paidAt, nextPaymentDate) {
+		t.Error("expected true: платёж оплачен и next_payment_date ещё не наступил")
+	}
+}
+
+func TestIsPaidCurrentPeriod_NilLastPaidAt(t *testing.T) {
+	nextPaymentDate := time.Now().Add(24 * time.Hour)
+	if isPaidCurrentPeriod(nil, nextPaymentDate) {
+		t.Error("expected false: платёж не был оплачен")
+	}
+}

@@ -137,9 +137,9 @@ func (s *MandatoryPaymentService) UnmarkPaid(ctx context.Context, id int64) (dto
 	if err != nil {
 		return dto.MandatoryPaymentResponse{}, err
 	}
-	if p.LastPaidAt == nil {
+	if !isPaidCurrentPeriod(p.LastPaidAt, p.NextPaymentDate) {
 		return dto.MandatoryPaymentResponse{}, &apperrors.ValidationError{
-			Message: "payment is not paid",
+			Message: "payment is not paid for the current period",
 			Fields:  map[string]string{"status": "not paid"},
 		}
 	}
@@ -287,5 +287,14 @@ func (s *MandatoryPaymentService) toResponse(ctx context.Context, p domain.Manda
 		s := p.LastPaidAt.Format(time.RFC3339)
 		resp.LastPaidAt = &s
 	}
+	resp.IsPaidCurrentPeriod = isPaidCurrentPeriod(p.LastPaidAt, p.NextPaymentDate)
 	return resp, nil
+}
+
+// isPaidCurrentPeriod определяет, оплачен ли платёж за текущий период.
+// last_paid_at не сбрасывается автоматически при наступлении нового периода
+// (next_payment_date уже продвинут вперёд при MarkPaid) — считаем платёж
+// оплаченным за текущий период только пока не наступил следующий срок.
+func isPaidCurrentPeriod(lastPaidAt *time.Time, nextPaymentDate time.Time) bool {
+	return lastPaidAt != nil && time.Now().Before(nextPaymentDate)
 }

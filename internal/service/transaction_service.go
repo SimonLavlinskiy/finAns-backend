@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"time"
 
@@ -138,8 +139,47 @@ func (s *TransactionService) Duplicate(ctx context.Context, id int64, projectID 
 	return s.toResponse(ctx, created)
 }
 
-func (s *TransactionService) Suggestions(ctx context.Context, q string, projectID int64) ([]string, error) {
-	return s.txRepo.Suggestions(ctx, q, 10, projectID)
+func (s *TransactionService) Suggestions(ctx context.Context, q string, projectID int64) ([]dto.TransactionSuggestionResponse, error) {
+	if strings.TrimSpace(q) == "" {
+		return nil, nil
+	}
+	items, err := s.txRepo.Suggestions(ctx, q, projectID)
+	if err != nil {
+		return nil, err
+	}
+	return pickBestPerTitle(items), nil
+}
+
+// pickBestPerTitle дедуплицирует комбинации по наименованию, оставляя для
+// каждого самую частую (при равной частоте — использованную позже), и
+// сортирует итоговый список по алфавиту.
+func pickBestPerTitle(items []domain.TransactionSuggestion) []dto.TransactionSuggestionResponse {
+	best := make(map[string]domain.TransactionSuggestion, len(items))
+	for _, it := range items {
+		cur, ok := best[it.Title]
+		if !ok || it.Count > cur.Count || (it.Count == cur.Count && it.LastUsed.After(cur.LastUsed)) {
+			best[it.Title] = it
+		}
+	}
+
+	titles := make([]string, 0, len(best))
+	for title := range best {
+		titles = append(titles, title)
+	}
+	sort.Strings(titles)
+
+	resp := make([]dto.TransactionSuggestionResponse, 0, len(titles))
+	for _, title := range titles {
+		it := best[title]
+		resp = append(resp, dto.TransactionSuggestionResponse{
+			Title:       it.Title,
+			Amount:      it.Amount,
+			TagID:       it.TagID,
+			Category:    it.Category,
+			Specificity: it.Specificity,
+		})
+	}
+	return resp
 }
 
 func (s *TransactionService) toResponse(ctx context.Context, t domain.Transaction) (dto.TransactionResponse, error) {

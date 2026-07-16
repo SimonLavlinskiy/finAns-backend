@@ -95,3 +95,11 @@ type UpdateBalanceRequest struct {
 	Balance       *int64 `json:"balance"`
 	InitialAmount *int64 `json:"initial_amount"`
 }
+
+type TransactionSuggestionResponse struct {
+	Title       string `json:"title"`
+	Amount      int64  `json:"amount"`
+	TagID       int64  `json:"tag_id"`
+	Category    string `json:"category"`
+	Specificity string `json:"specificity"`
+}
