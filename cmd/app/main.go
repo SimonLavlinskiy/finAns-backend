@@ -57,6 +57,7 @@ func main() {
 	mpRepo := repository.NewMandatoryPaymentRepository(pool)
 	peCatRepo := repository.NewPlannedExpenseCategoryRepository(pool)
 	peRepo := repository.NewPlannedExpenseRepository(pool)
+	slRepo := repository.NewSpendingLimitRepository(pool)
 
 	userSvc := service.NewUserService(userRepo, projectRepo)
 	projectSvc := service.NewProjectService(projectRepo, userRepo)
@@ -64,11 +65,12 @@ func main() {
 	fileSvc := service.NewFileService(cfg.UploadDir, txRepo)
 	txSvc := service.NewTransactionService(txRepo, tagRepo, tagSvc, fileSvc)
 	balSvc := service.NewBalanceService(balRepo)
-	analyticsSvc := service.NewAnalyticsService(analyticsRepo, tagRepo)
+	analyticsSvc := service.NewAnalyticsService(analyticsRepo, tagRepo, mpRepo, balRepo, peRepo)
 	importSvc := service.NewImportService(importRepo, tagRepo)
 	mpSvc := service.NewMandatoryPaymentService(mpRepo, tagRepo, tagSvc, txRepo)
 	peCatSvc := service.NewPlannedExpenseCategoryService(peCatRepo)
 	peSvc := service.NewPlannedExpenseService(peRepo, peCatRepo, peCatSvc)
+	slSvc := service.NewSpendingLimitService(slRepo, tagRepo, tagSvc)
 
 	router := handler.NewRouter(handler.RouterDeps{
 		Logger:                        logger,
@@ -87,6 +89,7 @@ func main() {
 		MandatoryPaymentHandler:       handler.NewMandatoryPaymentHandler(mpSvc),
 		PlannedExpenseCategoryHandler: handler.NewPlannedExpenseCategoryHandler(peCatSvc),
 		PlannedExpenseHandler:         handler.NewPlannedExpenseHandler(peSvc),
+		SpendingLimitHandler:          handler.NewSpendingLimitHandler(slSvc),
 	})
 
 	srv := &http.Server{

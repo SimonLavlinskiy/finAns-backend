@@ -11,7 +11,7 @@ import (
 )
 
 func TestAnalyticsHandler_GetExpensesCalendar_InvalidLevel(t *testing.T) {
-	h := NewAnalyticsHandler(service.NewAnalyticsService(nil, nil))
+	h := NewAnalyticsHandler(service.NewAnalyticsService(nil, nil, nil, nil, nil))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/analytics/expenses-calendar?level=week&year=2026", nil)
 	req = req.WithContext(middleware.WithProjectID(req.Context(), 1))
@@ -23,7 +23,7 @@ func TestAnalyticsHandler_GetExpensesCalendar_InvalidLevel(t *testing.T) {
 }
 
 func TestAnalyticsHandler_GetExpensesCalendar_DayWithoutMonth(t *testing.T) {
-	h := NewAnalyticsHandler(service.NewAnalyticsService(nil, nil))
+	h := NewAnalyticsHandler(service.NewAnalyticsService(nil, nil, nil, nil, nil))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/analytics/expenses-calendar?level=day&year=2026", nil)
 	req = req.WithContext(middleware.WithProjectID(req.Context(), 1))

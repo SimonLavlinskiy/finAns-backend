@@ -32,6 +32,7 @@ type RouterDeps struct {
 	MandatoryPaymentHandler       *MandatoryPaymentHandler
 	PlannedExpenseCategoryHandler *PlannedExpenseCategoryHandler
 	PlannedExpenseHandler         *PlannedExpenseHandler
+	SpendingLimitHandler          *SpendingLimitHandler
 }
 
 func NewRouter(deps RouterDeps) http.Handler {
@@ -107,6 +108,21 @@ func NewRouter(deps RouterDeps) http.Handler {
 				projectRoutes.Put("/balance", deps.BalanceHandler.Update)
 
 				projectRoutes.Get("/analytics/expenses-calendar", deps.AnalyticsHandler.GetExpensesCalendar)
+				projectRoutes.Get("/analytics/freedom-index", deps.AnalyticsHandler.GetFreedomIndex)
+				projectRoutes.Get("/analytics/fixed-cost-ratio", deps.AnalyticsHandler.GetFixedCostRatio)
+				projectRoutes.Get("/analytics/income-expense-sankey", deps.AnalyticsHandler.GetIncomeExpenseSankey)
+				projectRoutes.Get("/analytics/balance-forecast", deps.AnalyticsHandler.GetBalanceForecast)
+				projectRoutes.Get("/analytics/savings-goals", deps.AnalyticsHandler.GetSavingsGoals)
+				projectRoutes.Get("/analytics/spending-mood-calendar", deps.AnalyticsHandler.GetSpendingMoodCalendar)
+				projectRoutes.Get("/analytics/insights", deps.AnalyticsHandler.GetInsights)
+				projectRoutes.Get("/analytics/period-comparison", deps.AnalyticsHandler.GetPeriodComparison)
+
+				projectRoutes.Route("/spending-limits", func(sl chi.Router) {
+					sl.Get("/", deps.SpendingLimitHandler.List)
+					sl.Post("/", deps.SpendingLimitHandler.Create)
+					sl.Put("/{id}", deps.SpendingLimitHandler.Update)
+					sl.Delete("/{id}", deps.SpendingLimitHandler.Delete)
+				})
 
 				projectRoutes.Route("/import", func(ir chi.Router) {
 					ir.Post("/batches", deps.ImportHandler.UploadBatch)

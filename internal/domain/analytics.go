@@ -71,3 +71,68 @@ type AnalyticsRepository interface {
 	ListExpenseTransactionsInMonth(ctx context.Context, year, month int) ([]TransactionBrief, error)
 	ExistsExpenseBefore(ctx context.Context, before time.Time) (bool, error)
 }
+
+// FreedomIndexPoint — сумма «простых» и общих расходов за один месяц.
+type FreedomIndexPoint struct {
+	Month        time.Time
+	SimpleAmount int64
+	TotalExpense int64
+}
+
+// TagAmount — сумма транзакций по одному тегу за период.
+type TagAmount struct {
+	TagID  int64
+	Amount int64
+}
+
+// DailyMoodPoint — сумма «простых» и общих расходов за один день месяца.
+type DailyMoodPoint struct {
+	Day          int
+	SimpleAmount int64
+	TotalExpense int64
+}
+
+type SankeyNode struct {
+	ID    string
+	Label string
+}
+
+type SankeyFlow struct {
+	From   string
+	To     string
+	Amount int64
+}
+
+type SankeyResult struct {
+	Nodes []SankeyNode
+	Flows []SankeyFlow
+	// DeficitAmount — заполняется, если расход за период превысил доход
+	// (в этом случае узел «Остаток» не строится).
+	DeficitAmount *int64
+}
+
+// BalanceForecastPoint — баланс (фактический или прогнозируемый) на дату.
+type BalanceForecastPoint struct {
+	Date    time.Time
+	Balance int64
+}
+
+// Insight — один сработавший авто-инсайт с готовым текстом.
+type Insight struct {
+	Type string
+	Text string
+}
+
+// TagDelta — сумма по тегу за текущий месяц и среднее за предыдущие месяцы.
+type TagDelta struct {
+	TagID         int64
+	CurrentAmount int64
+	AverageAmount float64
+}
+
+// PeriodComparisonAmounts — суммы по тегу за два сравниваемых периода.
+type PeriodComparisonAmounts struct {
+	TagID            int64
+	CurrentAmount    int64
+	ComparisonAmount int64
+}
