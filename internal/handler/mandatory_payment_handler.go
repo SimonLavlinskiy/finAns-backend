@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"errors"
+	"io"
 	"net/http"
 
 	"github.com/SimonLavlinskiy/finAns-backend/internal/dto"
@@ -127,7 +129,12 @@ func (h *MandatoryPaymentHandler) MarkPaid(w http.ResponseWriter, r *http.Reques
 		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid id")
 		return
 	}
-	p, err := h.svc.MarkPaid(r.Context(), id, projectID)
+	var req dto.MarkPaidRequest
+	if err := decodeJSON(r, &req); err != nil && !errors.Is(err, io.EOF) {
+		httputil.WriteError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid JSON")
+		return
+	}
+	p, err := h.svc.MarkPaid(r.Context(), id, projectID, req)
 	if err != nil {
 		writeServiceError(w, err)
 		return

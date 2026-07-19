@@ -28,3 +28,10 @@ type UpdateMandatoryPaymentRequest struct {
 	Recurrence      string `json:"recurrence"`
 	NextPaymentDate string `json:"next_payment_date"`
 }
+
+// MarkPaidRequest — необязательное тело запроса при оплате регулярного платежа.
+// Amount позволяет отредактировать сумму создаваемой транзакции перед подтверждением;
+// если не передан (nil) или <= 0, используется сумма самого регулярного платежа.
+type MarkPaidRequest struct {
+	Amount *int64 `json:"amount"`
+}

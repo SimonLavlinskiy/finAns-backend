@@ -105,16 +105,19 @@ func (s *MandatoryPaymentService) Duplicate(ctx context.Context, id int64, proje
 
 // MarkPaid фиксирует факт оплаты: создаёт транзакцию-расход за платёж,
 // сдвигает next_payment_date на следующий период и записывает last_paid_at.
-func (s *MandatoryPaymentService) MarkPaid(ctx context.Context, id int64, projectID int64) (dto.MandatoryPaymentResponse, error) {
+func (s *MandatoryPaymentService) MarkPaid(ctx context.Context, id int64, projectID int64, req dto.MarkPaidRequest) (dto.MandatoryPaymentResponse, error) {
 	p, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return dto.MandatoryPaymentResponse{}, err
 	}
 
 	tx, err := s.txRepo.Create(ctx, domain.Transaction{
-		Title:       p.Title,
-		Amount:      p.Amount,
-		Date:        p.NextPaymentDate,
+		Title:  p.Title,
+		Amount: resolveMarkPaidAmount(p.Amount, req),
+		// Дата транзакции — фактический момент подтверждения, а не запланированная
+		// next_payment_date: пользователь может подтвердить оплату раньше или позже
+		// срока, и дата в "Операциях" должна отражать, когда деньги реально ушли.
+		Date:        time.Now(),
 		TagID:       p.TagID,
 		Category:    "expense",
 		Specificity: "required",
@@ -123,12 +126,24 @@ func (s *MandatoryPaymentService) MarkPaid(ctx context.Context, id int64, projec
 		return dto.MandatoryPaymentResponse{}, err
 	}
 
+	// Дата следующего платежа считается от исходной запланированной даты,
+	// не от фактической даты оплаты — расписание платежа не должно "плыть"
+	// из-за того, что пользователь подтвердил оплату раньше/позже срока.
 	newDate := advanceDate(p.NextPaymentDate, p.Recurrence)
 	updated, err := s.repo.SetPaid(ctx, id, newDate, tx.ID)
 	if err != nil {
 		return dto.MandatoryPaymentResponse{}, err
 	}
 	return s.toResponse(ctx, updated)
+}
+
+// resolveMarkPaidAmount выбирает сумму для создаваемой транзакции: из запроса,
+// если она передана и положительна, иначе — сумма самого регулярного платежа.
+func resolveMarkPaidAmount(paymentAmount int64, req dto.MarkPaidRequest) int64 {
+	if req.Amount != nil && *req.Amount > 0 {
+		return *req.Amount
+	}
+	return paymentAmount
 }
 
 // UnmarkPaid откатывает оплату: удаляет транзакцию и возвращает next_payment_date.

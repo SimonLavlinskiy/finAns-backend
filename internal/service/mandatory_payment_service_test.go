@@ -3,6 +3,8 @@ package service
 import (
 	"testing"
 	"time"
+
+	"github.com/SimonLavlinskiy/finAns-backend/internal/dto"
 )
 
 func TestAdvanceDate(t *testing.T) {
@@ -104,5 +106,31 @@ func TestIsPaidCurrentPeriod_NilLastPaidAt(t *testing.T) {
 	nextPaymentDate := time.Now().Add(24 * time.Hour)
 	if isPaidCurrentPeriod(nil, nextPaymentDate) {
 		t.Error("expected false: платёж не был оплачен")
+	}
+}
+
+func TestResolveMarkPaidAmount_NoOverride(t *testing.T) {
+	got := resolveMarkPaidAmount(50000, dto.MarkPaidRequest{Amount: nil})
+	if got != 50000 {
+		t.Errorf("expected default payment amount 50000, got %d", got)
+	}
+}
+
+func TestResolveMarkPaidAmount_PositiveOverride(t *testing.T) {
+	override := int64(75000)
+	got := resolveMarkPaidAmount(50000, dto.MarkPaidRequest{Amount: &override})
+	if got != 75000 {
+		t.Errorf("expected overridden amount 75000, got %d", got)
+	}
+}
+
+func TestResolveMarkPaidAmount_ZeroOrNegativeOverrideIgnored(t *testing.T) {
+	zero := int64(0)
+	if got := resolveMarkPaidAmount(50000, dto.MarkPaidRequest{Amount: &zero}); got != 50000 {
+		t.Errorf("expected zero override to be ignored, got %d", got)
+	}
+	negative := int64(-100)
+	if got := resolveMarkPaidAmount(50000, dto.MarkPaidRequest{Amount: &negative}); got != 50000 {
+		t.Errorf("expected negative override to be ignored, got %d", got)
 	}
 }
