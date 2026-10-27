@@ -92,6 +92,26 @@ func (r *SpendingLimitRepository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
+// UpsertMonthlyForTag создаёт или заменяет единственный месячный лимит тега в проекте.
+func (r *SpendingLimitRepository) UpsertMonthlyForTag(ctx context.Context, tagID, amount, projectID int64) (domain.SpendingLimit, error) {
+	row := r.pool.QueryRow(ctx, `
+		INSERT INTO spending_limits (tag_id, amount, period_type, project_id)
+		VALUES ($1, $2, 'month'::limit_period_type, $3)
+		ON CONFLICT (project_id, tag_id) WHERE period_type = 'month'
+		DO UPDATE SET amount = EXCLUDED.amount
+		RETURNING `+slColumns,
+		tagID, amount, projectID)
+	return scanSpendingLimit(row)
+}
+
+// DeleteMonthlyForTag удаляет месячный лимит тега; отсутствие лимита — не ошибка.
+func (r *SpendingLimitRepository) DeleteMonthlyForTag(ctx context.Context, tagID, projectID int64) error {
+	_, err := r.pool.Exec(ctx, `
+		DELETE FROM spending_limits
+		WHERE tag_id = $1 AND project_id = $2 AND period_type = 'month'`, tagID, projectID)
+	return err
+}
+
 // SumSpentInPeriod — сумма расходов по тегу (включая непосредственные подтеги)
 // в пределах [from, to).
 func (r *SpendingLimitRepository) SumSpentInPeriod(ctx context.Context, tagID int64, from, to time.Time, projectID int64) (int64, error) {

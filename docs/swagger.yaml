@@ -1,5 +1,12 @@
 basePath: /
 definitions:
+  domain.PlannerIncome:
+    properties:
+      amount:
+        type: integer
+      name:
+        type: string
+    type: object
   dto.AcceptedTransactionResponse:
     properties:
       amount:
@@ -20,6 +27,20 @@ definitions:
         type: string
       url:
         type: string
+    type: object
+  dto.AnalyticsRangeResponse:
+    properties:
+      current_month:
+        type: string
+      first_month:
+        type: string
+      today:
+        description: YYYY-MM-DD в часовом поясе приложения
+        type: string
+      years:
+        items:
+          type: integer
+        type: array
     type: object
   dto.CreatePlannedExpenseCategoryRequest:
     properties:
@@ -109,12 +130,129 @@ definitions:
       url:
         type: string
     type: object
+  dto.MonthCategoryResponse:
+    properties:
+      amount:
+        type: integer
+      category_id:
+        type: integer
+      subcategories:
+        items:
+          $ref: '#/definitions/dto.MonthSubcategoryResponse'
+        type: array
+    type: object
+  dto.MonthSubcategoryResponse:
+    properties:
+      all_mandatory:
+        type: boolean
+      amount:
+        type: integer
+      subcategory_id:
+        type: integer
+    type: object
+  dto.MonthSummaryResponse:
+    properties:
+      categories:
+        items:
+          $ref: '#/definitions/dto.MonthCategoryResponse'
+        type: array
+      days_in_month:
+        type: integer
+      expense:
+        type: integer
+      income:
+        type: integer
+      is_current:
+        type: boolean
+      month:
+        description: YYYY-MM
+        type: string
+      today:
+        type: integer
+    type: object
+  dto.PlannerRequest:
+    properties:
+      days:
+        type: integer
+      incomes:
+        items:
+          $ref: '#/definitions/domain.PlannerIncome'
+        type: array
+      payment_overrides:
+        additionalProperties:
+          type: integer
+        type: object
+      plans:
+        additionalProperties:
+          type: integer
+        type: object
+    type: object
+  dto.PlannerResponse:
+    properties:
+      days:
+        type: integer
+      incomes:
+        items:
+          $ref: '#/definitions/domain.PlannerIncome'
+        type: array
+      payment_overrides:
+        additionalProperties:
+          type: integer
+        type: object
+      plans:
+        additionalProperties:
+          type: integer
+        type: object
+      updated_at:
+        type: string
+    type: object
   dto.ReorderPlannedExpenseCategoriesRequest:
     properties:
       ids:
         items:
           type: integer
         type: array
+    type: object
+  dto.SpendingLimitResponse:
+    properties:
+      amount:
+        type: integer
+      category_id:
+        type: integer
+      id:
+        type: integer
+      period_end:
+        type: string
+      period_start:
+        type: string
+      period_type:
+        type: string
+      spent:
+        type: integer
+      tag:
+        $ref: '#/definitions/dto.TransactionTag'
+      tag_id:
+        type: integer
+    type: object
+  dto.TagParent:
+    properties:
+      color:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  dto.TransactionTag:
+    properties:
+      color:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      parent:
+        $ref: '#/definitions/dto.TagParent'
     type: object
   dto.UpdatePlannedExpenseRequest:
     properties:
@@ -132,6 +270,32 @@ definitions:
         type: string
       url:
         type: string
+    type: object
+  dto.UpsertCategoryLimitRequest:
+    properties:
+      amount:
+        type: integer
+    type: object
+  dto.YearMonthResponse:
+    properties:
+      expense:
+        type: integer
+      income:
+        type: integer
+      is_current:
+        type: boolean
+      month:
+        description: YYYY-MM
+        type: string
+    type: object
+  dto.YearSummaryResponse:
+    properties:
+      months:
+        items:
+          $ref: '#/definitions/dto.YearMonthResponse'
+        type: array
+      year:
+        type: integer
     type: object
 info:
   contact: {}
@@ -165,6 +329,70 @@ paths:
             additionalProperties: true
             type: object
       summary: Expenses calendar aggregation
+      tags:
+      - analytics
+  /api/v1/analytics/month:
+    get:
+      parameters:
+      - description: месяц YYYY-MM (не в будущем)
+        in: query
+        name: month
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.MonthSummaryResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 'Сводка месяца: доходы, расходы, категории и подкатегории'
+      tags:
+      - analytics
+  /api/v1/analytics/range:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.AnalyticsRangeResponse'
+      summary: 'Диапазон данных: первый месяц с операциями, текущий месяц, годы с
+        данными'
+      tags:
+      - analytics
+  /api/v1/analytics/year:
+    get:
+      parameters:
+      - description: год
+        in: query
+        name: year
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.YearSummaryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Доходы и расходы по месяцам года (до текущего месяца)
       tags:
       - analytics
   /api/v1/health:
@@ -437,30 +665,100 @@ paths:
       summary: Mark a planned expense item as done and move it to the archive
       tags:
       - planned-expenses
-  /api/v1/transactions:
+  /api/v1/planner:
     get:
-      parameters:
-      - description: Search title
-        in: query
-        name: search
-        type: string
-      - description: Page
-        in: query
-        name: page
-        type: integer
-      - description: Per page
-        in: query
-        name: per_page
-        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
+            $ref: '#/definitions/dto.PlannerResponse'
+      summary: Планирование проекта (общее для участников)
+      tags:
+      - planner
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Состояние планирования
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PlannerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PlannerResponse'
+        "400":
+          description: Bad Request
+          schema:
             additionalProperties: true
             type: object
-      summary: List transactions
+        "422":
+          description: Unprocessable Entity
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Сохранить планирование проекта (последняя запись побеждает)
       tags:
-      - transactions
+      - planner
+  /api/v1/spending-limits/by-category/{categoryId}:
+    delete:
+      parameters:
+      - description: ID категории верхнего уровня
+        in: path
+        name: categoryId
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Убрать ежемесячный лимит категории
+      tags:
+      - spending-limits
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID категории верхнего уровня
+        in: path
+        name: categoryId
+        required: true
+        type: integer
+      - description: Сумма в копейках
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpsertCategoryLimitRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SpendingLimitResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Задать ежемесячный лимит категории (upsert)
+      tags:
+      - spending-limits
 swagger: "2.0"

@@ -164,3 +164,46 @@ type PeriodComparisonResponse struct {
 	CurrentAmount    int64  `json:"current_amount"`
 	ComparisonAmount int64  `json:"comparison_amount"`
 }
+
+// --- Раздел «Аналитика» v2: обзор месяца, динамика ---
+
+type MonthSubcategoryResponse struct {
+	SubcategoryID *int64 `json:"subcategory_id"`
+	Amount        int64  `json:"amount"`
+	AllMandatory  bool   `json:"all_mandatory"`
+}
+
+type MonthCategoryResponse struct {
+	CategoryID    int64                      `json:"category_id"`
+	Amount        int64                      `json:"amount"`
+	Subcategories []MonthSubcategoryResponse `json:"subcategories"`
+}
+
+type MonthSummaryResponse struct {
+	Month       string                  `json:"month"` // YYYY-MM
+	IsCurrent   bool                    `json:"is_current"`
+	Today       *int                    `json:"today"`
+	DaysInMonth int                     `json:"days_in_month"`
+	Income      int64                   `json:"income"`
+	Expense     int64                   `json:"expense"`
+	Categories  []MonthCategoryResponse `json:"categories"`
+}
+
+type YearMonthResponse struct {
+	Month     string `json:"month"` // YYYY-MM
+	Income    int64  `json:"income"`
+	Expense   int64  `json:"expense"`
+	IsCurrent bool   `json:"is_current"`
+}
+
+type YearSummaryResponse struct {
+	Year   int                 `json:"year"`
+	Months []YearMonthResponse `json:"months"`
+}
+
+type AnalyticsRangeResponse struct {
+	FirstMonth   *string `json:"first_month"`
+	CurrentMonth string  `json:"current_month"`
+	Today        string  `json:"today"` // YYYY-MM-DD в часовом поясе приложения
+	Years        []int   `json:"years"`
+}

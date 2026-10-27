@@ -136,3 +136,18 @@ type PeriodComparisonAmounts struct {
 	CurrentAmount    int64
 	ComparisonAmount int64
 }
+
+// TagCategoryAmount — сумма операций одного типа по тегу за период.
+type TagCategoryAmount struct {
+	TagID        int64
+	Category     string // income | expense
+	Amount       int64
+	AllMandatory bool
+}
+
+// MonthIncomeExpense — доходы и расходы за месяц года.
+type MonthIncomeExpense struct {
+	Month   int
+	Income  int64
+	Expense int64
+}

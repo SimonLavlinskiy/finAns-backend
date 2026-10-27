@@ -58,6 +58,7 @@ func main() {
 	peCatRepo := repository.NewPlannedExpenseCategoryRepository(pool)
 	peRepo := repository.NewPlannedExpenseRepository(pool)
 	slRepo := repository.NewSpendingLimitRepository(pool)
+	plannerRepo := repository.NewPlannerRepository(pool)
 
 	userSvc := service.NewUserService(userRepo, projectRepo)
 	projectSvc := service.NewProjectService(projectRepo, userRepo)
@@ -71,6 +72,8 @@ func main() {
 	peCatSvc := service.NewPlannedExpenseCategoryService(peCatRepo)
 	peSvc := service.NewPlannedExpenseService(peRepo, peCatRepo, peCatSvc)
 	slSvc := service.NewSpendingLimitService(slRepo, tagRepo, tagSvc)
+	overviewSvc := service.NewAnalyticsOverviewService(analyticsRepo, tagRepo, service.NewClock(cfg.AppTZ))
+	plannerSvc := service.NewPlannerService(plannerRepo)
 
 	router := handler.NewRouter(handler.RouterDeps{
 		Logger:                        logger,
@@ -85,6 +88,8 @@ func main() {
 		BalanceHandler:                handler.NewBalanceHandler(balSvc),
 		FileHandler:                   handler.NewFileHandler(fileSvc),
 		AnalyticsHandler:              handler.NewAnalyticsHandler(analyticsSvc),
+		AnalyticsOverviewHandler:      handler.NewAnalyticsOverviewHandler(overviewSvc),
+		PlannerHandler:                handler.NewPlannerHandler(plannerSvc),
 		ImportHandler:                 handler.NewImportHandler(importSvc),
 		MandatoryPaymentHandler:       handler.NewMandatoryPaymentHandler(mpSvc),
 		PlannedExpenseCategoryHandler: handler.NewPlannedExpenseCategoryHandler(peCatSvc),

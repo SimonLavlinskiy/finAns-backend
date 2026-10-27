@@ -11,23 +11,31 @@ type TagParent struct {
 }
 
 type TagResponse struct {
-	ID       int64         `json:"id"`
-	Name     string        `json:"name"`
-	Color    string        `json:"color"`
-	ParentID *int64        `json:"parent_id,omitempty"`
-	Parent   *TagParent    `json:"parent,omitempty"`
-	Children []TagResponse `json:"children,omitempty"`
+	ID        int64         `json:"id"`
+	Name      string        `json:"name"`
+	Color     string        `json:"color"`
+	Kind      string        `json:"kind"`
+	Order     int           `json:"order"`
+	CreatedAt string        `json:"created_at"`
+	DeletedAt *string       `json:"deleted_at"`
+	ParentID  *int64        `json:"parent_id,omitempty"`
+	Parent    *TagParent    `json:"parent,omitempty"`
+	Children  []TagResponse `json:"children,omitempty"`
 }
 
 type CreateTagRequest struct {
 	Name     string `json:"name"`
 	Color    string `json:"color"`
 	ParentID *int64 `json:"parent_id"`
+	// Kind — вид корневой категории (expense|income); подтег наследует вид родителя.
+	Kind string `json:"kind"`
 }
 
 type UpdateTagRequest struct {
-	Name  string `json:"name"`
-	Color string `json:"color"`
+	Name  string  `json:"name"`
+	Color string  `json:"color"`
+	Kind  *string `json:"kind"`
+	Order *int    `json:"order"`
 }
 
 type TagUsageResponse struct {

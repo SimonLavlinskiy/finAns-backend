@@ -25,7 +25,8 @@ func (h *TagHandler) List(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteError(w, http.StatusBadRequest, "PROJECT_ID_REQUIRED", "X-Project-ID required")
 		return
 	}
-	tree, err := h.svc.ListTree(r.Context(), projectID)
+	includeDeleted := r.URL.Query().Get("include_deleted") == "true"
+	tree, err := h.svc.ListTree(r.Context(), projectID, includeDeleted)
 	if err != nil {
 		writeServiceError(w, err)
 		return

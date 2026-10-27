@@ -47,6 +47,14 @@ func (s *SpendingLimitService) Create(ctx context.Context, req dto.CreateSpendin
 	if err != nil {
 		return dto.SpendingLimitResponse{}, err
 	}
+	// Месячный лимит у категории один: повторное создание заменяет существующий.
+	if l.PeriodType == domain.LimitPeriodMonth {
+		upserted, err := s.repo.UpsertMonthlyForTag(ctx, l.TagID, l.Amount, projectID)
+		if err != nil {
+			return dto.SpendingLimitResponse{}, err
+		}
+		return s.toResponse(ctx, upserted, projectID)
+	}
 	created, err := s.repo.Create(ctx, l, projectID)
 	if err != nil {
 		return dto.SpendingLimitResponse{}, err
@@ -69,6 +77,61 @@ func (s *SpendingLimitService) Update(ctx context.Context, id int64, req dto.Upd
 
 func (s *SpendingLimitService) Delete(ctx context.Context, id int64) error {
 	return s.repo.Delete(ctx, id)
+}
+
+// UpsertForCategory задаёт единственный ежемесячный лимит расходной категории.
+func (s *SpendingLimitService) UpsertForCategory(ctx context.Context, categoryID int64, amount int64, projectID int64) (dto.SpendingLimitResponse, error) {
+	if err := s.validateCategory(ctx, categoryID, projectID); err != nil {
+		return dto.SpendingLimitResponse{}, err
+	}
+	if amount <= 0 {
+		return dto.SpendingLimitResponse{}, &apperrors.ValidationError{
+			Message: "validation failed",
+			Fields:  map[string]string{"amount": "должно быть > 0"},
+		}
+	}
+	l, err := s.repo.UpsertMonthlyForTag(ctx, categoryID, amount, projectID)
+	if err != nil {
+		return dto.SpendingLimitResponse{}, err
+	}
+	return s.toResponse(ctx, l, projectID)
+}
+
+// DeleteForCategory удаляет ежемесячный лимит категории (идемпотентно).
+func (s *SpendingLimitService) DeleteForCategory(ctx context.Context, categoryID int64, projectID int64) error {
+	if err := s.validateCategory(ctx, categoryID, projectID); err != nil {
+		return err
+	}
+	return s.repo.DeleteMonthlyForTag(ctx, categoryID, projectID)
+}
+
+// validateCategory: лимит можно задать только живой корневой расходной категории проекта.
+func (s *SpendingLimitService) validateCategory(ctx context.Context, categoryID int64, projectID int64) error {
+	tags, err := s.tagRepo.List(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	return checkLimitCategory(tags, categoryID)
+}
+
+func checkLimitCategory(aliveTags []domain.Tag, categoryID int64) error {
+	for _, t := range aliveTags {
+		if t.ID != categoryID {
+			continue
+		}
+		fields := map[string]string{}
+		if t.ParentID != nil {
+			fields["category_id"] = "лимит задаётся только категории верхнего уровня"
+		}
+		if t.Kind != domain.TagKindExpense {
+			fields["category_id"] = "лимит нельзя задать доходной категории"
+		}
+		if len(fields) > 0 {
+			return &apperrors.ValidationError{Message: "validation failed", Fields: fields}
+		}
+		return nil
+	}
+	return &apperrors.NotFoundError{Resource: "category"}
 }
 
 func (s *SpendingLimitService) validateAndBuild(
@@ -155,6 +218,7 @@ func (s *SpendingLimitService) toResponse(ctx context.Context, l domain.Spending
 	resp := dto.SpendingLimitResponse{
 		ID:         l.ID,
 		TagID:      l.TagID,
+		CategoryID: l.TagID,
 		Tag:        tag,
 		Amount:     l.Amount,
 		Spent:      spent,

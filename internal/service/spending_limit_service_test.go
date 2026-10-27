@@ -4,8 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SimonLavlinskiy/finAns-backend/internal/apperrors"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/domain"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPeriodBounds_Custom(t *testing.T) {
@@ -36,4 +38,24 @@ func TestPeriodBounds_Week(t *testing.T) {
 	assert.Equal(t, time.Monday, from.Weekday())
 	assert.Equal(t, from.AddDate(0, 0, 7), to)
 	assert.True(t, !from.After(time.Now().UTC()), "начало недели не должно быть в будущем")
+}
+
+func TestCheckLimitCategory(t *testing.T) {
+	root := int64(1)
+	tags := []domain.Tag{
+		{ID: 1, Name: "Еда", Kind: domain.TagKindExpense},
+		{ID: 2, Name: "Кафе", Kind: domain.TagKindExpense, ParentID: &root},
+		{ID: 3, Name: "Доход", Kind: domain.TagKindIncome},
+	}
+
+	assert.NoError(t, checkLimitCategory(tags, 1))
+
+	var ve *apperrors.ValidationError
+	require.ErrorAs(t, checkLimitCategory(tags, 2), &ve, "подтег")
+	assert.Contains(t, ve.Fields, "category_id")
+
+	require.ErrorAs(t, checkLimitCategory(tags, 3), &ve, "доходная категория")
+
+	var nf *apperrors.NotFoundError
+	assert.ErrorAs(t, checkLimitCategory(tags, 99), &nf, "удалённая или чужая категория")
 }

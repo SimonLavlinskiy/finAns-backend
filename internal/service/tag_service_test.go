@@ -2,6 +2,7 @@ package service
 
 import (
 	"testing"
+	"time"
 
 	"github.com/SimonLavlinskiy/finAns-backend/internal/domain"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/dto"
@@ -159,4 +160,26 @@ func TestTagResponseStructure(t *testing.T) {
 	}
 	assert.Empty(t, resp.Children)
 	assert.Nil(t, resp.ParentID)
+}
+
+func TestTagToDTO_KindOrderDeleted(t *testing.T) {
+	created := time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC)
+	deleted := time.Date(2026, 4, 20, 9, 0, 0, 0, time.UTC)
+	got := tagToDTO(domain.Tag{ID: 1, Name: "Спорт", Kind: domain.TagKindExpense, Order: 3, CreatedAt: created, DeletedAt: &deleted})
+
+	assert.Equal(t, "expense", got.Kind)
+	assert.Equal(t, 3, got.Order)
+	assert.Equal(t, "2026-04-01T10:00:00Z", got.CreatedAt)
+	require.NotNil(t, got.DeletedAt)
+	assert.Equal(t, "2026-04-20T09:00:00Z", *got.DeletedAt)
+
+	alive := tagToDTO(domain.Tag{ID: 2, Name: "Еда", CreatedAt: created})
+	assert.Nil(t, alive.DeletedAt)
+}
+
+func TestIsValidTagKind(t *testing.T) {
+	assert.True(t, isValidTagKind("expense"))
+	assert.True(t, isValidTagKind("income"))
+	assert.False(t, isValidTagKind(""))
+	assert.False(t, isValidTagKind("savings"))
 }

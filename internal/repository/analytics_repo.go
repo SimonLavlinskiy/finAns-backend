@@ -361,3 +361,84 @@ func (r *AnalyticsRepository) SumByTagForTwoPeriods(ctx context.Context, current
 	}
 	return items, rows.Err()
 }
+
+// SumByTagAndCategoryInPeriod — суммы операций в [from, to) по тегу и типу операции
+// с признаком «все операции обязательные».
+func (r *AnalyticsRepository) SumByTagAndCategoryInPeriod(ctx context.Context, from, to time.Time, projectID int64) ([]domain.TagCategoryAmount, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT tag_id, category::text, SUM(amount), BOOL_AND(specificity = 'required'::transaction_specificity)
+		FROM transactions
+		WHERE project_id = $1 AND date >= $2 AND date < $3
+		GROUP BY tag_id, category`, projectID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []domain.TagCategoryAmount
+	for rows.Next() {
+		var a domain.TagCategoryAmount
+		if err := rows.Scan(&a.TagID, &a.Category, &a.Amount, &a.AllMandatory); err != nil {
+			return nil, err
+		}
+		result = append(result, a)
+	}
+	return result, rows.Err()
+}
+
+// IncomeExpenseByMonthInYear — доходы и расходы по месяцам года (только месяцы с операциями).
+func (r *AnalyticsRepository) IncomeExpenseByMonthInYear(ctx context.Context, year int, projectID int64) ([]domain.MonthIncomeExpense, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT EXTRACT(MONTH FROM date)::int AS month,
+		       COALESCE(SUM(amount) FILTER (WHERE category = 'income'::transaction_category), 0),
+		       COALESCE(SUM(amount) FILTER (WHERE category = 'expense'::transaction_category), 0)
+		FROM transactions
+		WHERE project_id = $2
+		  AND date >= make_date($1, 1, 1)
+		  AND date < make_date($1 + 1, 1, 1)
+		GROUP BY month
+		ORDER BY month`, year, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []domain.MonthIncomeExpense
+	for rows.Next() {
+		var m domain.MonthIncomeExpense
+		if err := rows.Scan(&m.Month, &m.Income, &m.Expense); err != nil {
+			return nil, err
+		}
+		result = append(result, m)
+	}
+	return result, rows.Err()
+}
+
+// TransactionYears — годы, в которых есть операции, по возрастанию.
+func (r *AnalyticsRepository) TransactionYears(ctx context.Context, projectID int64) ([]int, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT EXTRACT(YEAR FROM date)::int AS y
+		FROM transactions WHERE project_id = $1
+		ORDER BY y`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var years []int
+	for rows.Next() {
+		var y int
+		if err := rows.Scan(&y); err != nil {
+			return nil, err
+		}
+		years = append(years, y)
+	}
+	return years, rows.Err()
+}
+
+// FirstTransactionDate — дата самой ранней операции проекта (nil, если операций нет).
+func (r *AnalyticsRepository) FirstTransactionDate(ctx context.Context, projectID int64) (*time.Time, error) {
+	var d *time.Time
+	err := r.pool.QueryRow(ctx, `SELECT MIN(date) FROM transactions WHERE project_id = $1`, projectID).Scan(&d)
+	return d, err
+}

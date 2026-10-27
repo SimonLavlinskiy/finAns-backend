@@ -57,6 +57,102 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/analytics/month": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "Сводка месяца: доходы, расходы, категории и подкатегории",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "месяц YYYY-MM (не в будущем)",
+                        "name": "month",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.MonthSummaryResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/analytics/range": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "Диапазон данных: первый месяц с операциями, текущий месяц, годы с данными",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.AnalyticsRangeResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/analytics/year": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "Доходы и расходы по месяцам года (до текущего месяца)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "год",
+                        "name": "year",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.YearSummaryResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/health": {
             "get": {
                 "description": "Returns service and database connectivity status",
@@ -474,38 +570,143 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/transactions": {
+        "/api/v1/planner": {
             "get": {
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "transactions"
+                    "planner"
                 ],
-                "summary": "List transactions",
+                "summary": "Планирование проекта (общее для участников)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PlannerResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "planner"
+                ],
+                "summary": "Сохранить планирование проекта (последняя запись побеждает)",
                 "parameters": [
                     {
-                        "type": "string",
-                        "description": "Search title",
-                        "name": "search",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Per page",
-                        "name": "per_page",
-                        "in": "query"
+                        "description": "Состояние планирования",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.PlannerRequest"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PlannerResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/spending-limits/by-category/{categoryId}": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "spending-limits"
+                ],
+                "summary": "Задать ежемесячный лимит категории (upsert)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID категории верхнего уровня",
+                        "name": "categoryId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Сумма в копейках",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpsertCategoryLimitRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SpendingLimitResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "spending-limits"
+                ],
+                "summary": "Убрать ежемесячный лимит категории",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID категории верхнего уровня",
+                        "name": "categoryId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -516,6 +717,17 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "domain.PlannerIncome": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.AcceptedTransactionResponse": {
             "type": "object",
             "properties": {
@@ -545,6 +757,27 @@ const docTemplate = `{
                 },
                 "url": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.AnalyticsRangeResponse": {
+            "type": "object",
+            "properties": {
+                "current_month": {
+                    "type": "string"
+                },
+                "first_month": {
+                    "type": "string"
+                },
+                "today": {
+                    "description": "YYYY-MM-DD в часовом поясе приложения",
+                    "type": "string"
+                },
+                "years": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 }
             }
         },
@@ -683,6 +916,122 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.MonthCategoryResponse": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "category_id": {
+                    "type": "integer"
+                },
+                "subcategories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.MonthSubcategoryResponse"
+                    }
+                }
+            }
+        },
+        "dto.MonthSubcategoryResponse": {
+            "type": "object",
+            "properties": {
+                "all_mandatory": {
+                    "type": "boolean"
+                },
+                "amount": {
+                    "type": "integer"
+                },
+                "subcategory_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.MonthSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.MonthCategoryResponse"
+                    }
+                },
+                "days_in_month": {
+                    "type": "integer"
+                },
+                "expense": {
+                    "type": "integer"
+                },
+                "income": {
+                    "type": "integer"
+                },
+                "is_current": {
+                    "type": "boolean"
+                },
+                "month": {
+                    "description": "YYYY-MM",
+                    "type": "string"
+                },
+                "today": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.PlannerRequest": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer"
+                },
+                "incomes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.PlannerIncome"
+                    }
+                },
+                "payment_overrides": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "plans": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "dto.PlannerResponse": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer"
+                },
+                "incomes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.PlannerIncome"
+                    }
+                },
+                "payment_overrides": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "plans": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.ReorderPlannedExpenseCategoriesRequest": {
             "type": "object",
             "properties": {
@@ -691,6 +1040,69 @@ const docTemplate = `{
                     "items": {
                         "type": "integer"
                     }
+                }
+            }
+        },
+        "dto.SpendingLimitResponse": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "category_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "period_end": {
+                    "type": "string"
+                },
+                "period_start": {
+                    "type": "string"
+                },
+                "period_type": {
+                    "type": "string"
+                },
+                "spent": {
+                    "type": "integer"
+                },
+                "tag": {
+                    "$ref": "#/definitions/dto.TransactionTag"
+                },
+                "tag_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.TagParent": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.TransactionTag": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parent": {
+                    "$ref": "#/definitions/dto.TagParent"
                 }
             }
         },
@@ -717,6 +1129,46 @@ const docTemplate = `{
                 },
                 "url": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.UpsertCategoryLimitRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.YearMonthResponse": {
+            "type": "object",
+            "properties": {
+                "expense": {
+                    "type": "integer"
+                },
+                "income": {
+                    "type": "integer"
+                },
+                "is_current": {
+                    "type": "boolean"
+                },
+                "month": {
+                    "description": "YYYY-MM",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.YearSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "months": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.YearMonthResponse"
+                    }
+                },
+                "year": {
+                    "type": "integer"
                 }
             }
         }

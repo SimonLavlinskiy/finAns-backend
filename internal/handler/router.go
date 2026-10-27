@@ -28,6 +28,8 @@ type RouterDeps struct {
 	BalanceHandler                *BalanceHandler
 	FileHandler                   *FileHandler
 	AnalyticsHandler              *AnalyticsHandler
+	AnalyticsOverviewHandler      *AnalyticsOverviewHandler
+	PlannerHandler                *PlannerHandler
 	ImportHandler                 *ImportHandler
 	MandatoryPaymentHandler       *MandatoryPaymentHandler
 	PlannedExpenseCategoryHandler *PlannedExpenseCategoryHandler
@@ -116,12 +118,20 @@ func NewRouter(deps RouterDeps) http.Handler {
 				projectRoutes.Get("/analytics/spending-mood-calendar", deps.AnalyticsHandler.GetSpendingMoodCalendar)
 				projectRoutes.Get("/analytics/insights", deps.AnalyticsHandler.GetInsights)
 				projectRoutes.Get("/analytics/period-comparison", deps.AnalyticsHandler.GetPeriodComparison)
+				projectRoutes.Get("/analytics/month", deps.AnalyticsOverviewHandler.GetMonth)
+				projectRoutes.Get("/analytics/year", deps.AnalyticsOverviewHandler.GetYear)
+				projectRoutes.Get("/analytics/range", deps.AnalyticsOverviewHandler.GetRange)
+
+				projectRoutes.Get("/planner", deps.PlannerHandler.Get)
+				projectRoutes.Put("/planner", deps.PlannerHandler.Put)
 
 				projectRoutes.Route("/spending-limits", func(sl chi.Router) {
 					sl.Get("/", deps.SpendingLimitHandler.List)
 					sl.Post("/", deps.SpendingLimitHandler.Create)
 					sl.Put("/{id}", deps.SpendingLimitHandler.Update)
 					sl.Delete("/{id}", deps.SpendingLimitHandler.Delete)
+					sl.Put("/by-category/{categoryId}", deps.SpendingLimitHandler.UpsertByCategory)
+					sl.Delete("/by-category/{categoryId}", deps.SpendingLimitHandler.DeleteByCategory)
 				})
 
 				projectRoutes.Route("/import", func(ir chi.Router) {

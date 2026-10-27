@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/SimonLavlinskiy/finAns-backend/internal/apperrors"
 	"github.com/SimonLavlinskiy/finAns-backend/internal/domain"
@@ -20,8 +21,16 @@ func NewTagService(repo *repository.TagRepository) *TagService {
 	return &TagService{repo: repo}
 }
 
-func (s *TagService) ListTree(ctx context.Context, projectID int64) ([]dto.TagResponse, error) {
-	tags, err := s.repo.List(ctx, projectID)
+func (s *TagService) ListTree(ctx context.Context, projectID int64, includeDeleted bool) ([]dto.TagResponse, error) {
+	var (
+		tags []domain.Tag
+		err  error
+	)
+	if includeDeleted {
+		tags, err = s.repo.ListWithDeleted(ctx, projectID)
+	} else {
+		tags, err = s.repo.List(ctx, projectID)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -41,15 +50,7 @@ func buildTagTree(tags []domain.Tag) []dto.TagResponse {
 
 	var build func(domain.Tag) dto.TagResponse
 	build = func(t domain.Tag) dto.TagResponse {
-		resp := dto.TagResponse{
-			ID:       t.ID,
-			Name:     t.Name,
-			Color:    t.Color,
-			Children: []dto.TagResponse{},
-		}
-		if t.ParentID != nil {
-			resp.ParentID = t.ParentID
-		}
+		resp := tagToDTO(t)
 		for _, ch := range children[t.ID] {
 			resp.Children = append(resp.Children, build(ch))
 		}
@@ -76,6 +77,13 @@ func (s *TagService) Create(ctx context.Context, req dto.CreateTagRequest, proje
 	if req.Color == "" {
 		req.Color = defaultTagColor
 	}
+	kind := req.Kind
+	if kind == "" {
+		kind = domain.TagKindExpense
+	}
+	if !isValidTagKind(kind) {
+		fields["kind"] = "must be expense or income"
+	}
 	if req.ParentID != nil {
 		if err := s.repo.ValidateParent(ctx, *req.ParentID); err != nil {
 			fields["parent_id"] = "not found"
@@ -83,6 +91,7 @@ func (s *TagService) Create(ctx context.Context, req dto.CreateTagRequest, proje
 			parent, err := s.repo.GetByID(ctx, *req.ParentID)
 			if err == nil {
 				req.Color = colorutil.Lighten(parent.Color, childColorLighten)
+				kind = parent.Kind
 			}
 		}
 	}
@@ -90,7 +99,7 @@ func (s *TagService) Create(ctx context.Context, req dto.CreateTagRequest, proje
 		return dto.TagResponse{}, &apperrors.ValidationError{Fields: fields, Message: "validation failed"}
 	}
 
-	t, err := s.repo.Create(ctx, req.Name, req.Color, req.ParentID, projectID)
+	t, err := s.repo.Create(ctx, req.Name, req.Color, req.ParentID, projectID, kind)
 	if err != nil {
 		return dto.TagResponse{}, err
 	}
@@ -105,83 +114,86 @@ func (s *TagService) Update(ctx context.Context, id int64, req dto.UpdateTagRequ
 	if req.Color == "" {
 		req.Color = defaultTagColor
 	}
+	if req.Kind != nil && !isValidTagKind(*req.Kind) {
+		fields["kind"] = "must be expense or income"
+	}
 	if len(fields) > 0 {
 		return dto.TagResponse{}, &apperrors.ValidationError{Fields: fields, Message: "validation failed"}
 	}
 
-	existing, err := s.repo.GetByID(ctx, id)
+	existing, err := s.getAlive(ctx, id)
 	if err != nil {
 		return dto.TagResponse{}, err
 	}
 
 	color := req.Color
+	kind := existing.Kind
 	if existing.ParentID != nil {
 		parent, err := s.repo.GetByID(ctx, *existing.ParentID)
 		if err != nil {
 			return dto.TagResponse{}, err
 		}
 		color = colorutil.Lighten(parent.Color, childColorLighten)
+	} else if req.Kind != nil {
+		kind = *req.Kind
+	}
+	order := existing.Order
+	if req.Order != nil {
+		order = *req.Order
 	}
 
-	t, err := s.repo.Update(ctx, id, req.Name, color)
+	t, err := s.repo.Update(ctx, id, req.Name, color, kind, order)
 	if err != nil {
 		return dto.TagResponse{}, err
 	}
 
 	if existing.ParentID == nil {
 		_ = s.repo.UpdateChildrenColor(ctx, id, colorutil.Lighten(color, childColorLighten))
+		if kind != existing.Kind {
+			if err := s.repo.UpdateChildrenKind(ctx, id, kind); err != nil {
+				return dto.TagResponse{}, err
+			}
+		}
 	}
 
 	return tagToDTO(t), nil
 }
 
+// Delete мягко удаляет тег: операции сохраняют ссылку на него, лимиты тега
+// удаляются. Без cascade тег с подтегами удалить нельзя.
 func (s *TagService) Delete(ctx context.Context, id int64, cascade bool) error {
-	if _, err := s.repo.GetByID(ctx, id); err != nil {
+	if _, err := s.getAlive(ctx, id); err != nil {
 		return err
 	}
-
-	parentID, _ := s.repo.ParentID(ctx, id)
-	reassignTo := parentID // nil для корневых тегов
-
-	if cascade {
-		// Для корневых тегов (reassignTo == nil) проверяем: если есть транзакции
-		// у самого тега или у потомков — блокируем, чтобы не потерять данные.
-		if reassignTo == nil {
-			total, err := s.repo.CountUsageSubtree(ctx, id)
-			if err != nil {
-				return err
-			}
-			if total > 0 {
-				return &apperrors.ValidationError{
-					Message: "root tag has transactions; reassign them before deleting",
-					Fields:  map[string]string{"transactions": "exists"},
-				}
-			}
-		}
-		return s.repo.DeleteCascade(ctx, id, reassignTo)
-	}
-
-	count, err := s.repo.CountUsage(ctx, id)
-	if err != nil {
-		return err
-	}
-	descendants, err := s.repo.ListDescendantIDs(ctx, id)
-	if err != nil {
-		return err
-	}
-	if len(descendants) > 0 {
-		return &apperrors.ValidationError{
-			Message: "tag has children; use cascade delete",
-			Fields:  map[string]string{"children": "exists"},
-		}
-	}
-
-	if count > 0 {
-		if err := s.repo.ReassignTransactions(ctx, id, reassignTo); err != nil {
+	if !cascade {
+		descendants, err := s.repo.ListDescendantIDs(ctx, id)
+		if err != nil {
 			return err
 		}
+		if len(descendants) > 0 {
+			return &apperrors.ValidationError{
+				Message: "tag has children; use cascade delete",
+				Fields:  map[string]string{"children": "exists"},
+			}
+		}
 	}
-	return s.repo.Delete(ctx, id)
+	return s.repo.SoftDeleteSubtree(ctx, id)
+}
+
+// getAlive возвращает тег, если он не удалён; удалённый считается ненайденным.
+func (s *TagService) getAlive(ctx context.Context, id int64) (domain.Tag, error) {
+	t, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return domain.Tag{}, err
+	}
+	if t.DeletedAt != nil {
+		return domain.Tag{}, &apperrors.NotFoundError{Resource: "tag"}
+	}
+	return t, nil
+}
+
+func isValidTagKind(kind string) bool {
+	return kind == domain.TagKindExpense || kind == domain.TagKindIncome
 }
 
 func (s *TagService) GetUsage(ctx context.Context, id int64) (dto.TagUsageResponse, error) {
@@ -200,9 +212,21 @@ func (s *TagService) GetByID(ctx context.Context, id int64) (domain.Tag, error) 
 }
 
 func tagToDTO(t domain.Tag) dto.TagResponse {
-	resp := dto.TagResponse{ID: t.ID, Name: t.Name, Color: t.Color, Children: []dto.TagResponse{}}
+	resp := dto.TagResponse{
+		ID:        t.ID,
+		Name:      t.Name,
+		Color:     t.Color,
+		Kind:      t.Kind,
+		Order:     t.Order,
+		CreatedAt: t.CreatedAt.UTC().Format(time.RFC3339),
+		Children:  []dto.TagResponse{},
+	}
 	if t.ParentID != nil {
 		resp.ParentID = t.ParentID
+	}
+	if t.DeletedAt != nil {
+		v := t.DeletedAt.UTC().Format(time.RFC3339)
+		resp.DeletedAt = &v
 	}
 	return resp
 }

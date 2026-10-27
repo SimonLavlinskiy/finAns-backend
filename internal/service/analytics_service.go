@@ -170,7 +170,7 @@ type tagInfo struct {
 }
 
 func (s *AnalyticsService) tagRootMap(ctx context.Context, projectID int64) (map[int64]tagInfo, error) {
-	tags, err := s.tagRepo.List(ctx, projectID)
+	tags, err := s.tagRepo.ListWithDeleted(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +305,7 @@ func (s *AnalyticsService) GetIncomeExpenseSankey(ctx context.Context, level str
 	if err != nil {
 		return domain.SankeyResult{}, err
 	}
-	tags, err := s.tagRepo.List(ctx, projectID)
+	tags, err := s.tagRepo.ListWithDeleted(ctx, projectID)
 	if err != nil {
 		return domain.SankeyResult{}, err
 	}
@@ -609,7 +609,7 @@ func (s *AnalyticsService) insightTopCategoryGrowth(ctx context.Context, project
 	if err != nil {
 		return nil, err
 	}
-	tags, err := s.tagRepo.List(ctx, projectID)
+	tags, err := s.tagRepo.ListWithDeleted(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -643,7 +643,7 @@ func (s *AnalyticsService) insightNewTag(ctx context.Context, projectID int64) (
 	if err != nil || len(newTagIDs) == 0 {
 		return nil, err
 	}
-	tags, err := s.tagRepo.List(ctx, projectID)
+	tags, err := s.tagRepo.ListWithDeleted(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -695,7 +695,7 @@ func (s *AnalyticsService) GetPeriodComparison(ctx context.Context, mode string,
 	if err != nil {
 		return nil, err
 	}
-	tags, err := s.tagRepo.List(ctx, projectID)
+	tags, err := s.tagRepo.ListWithDeleted(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
